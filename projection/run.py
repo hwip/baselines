@@ -258,7 +258,7 @@ def test(args, *, logger=getLogger(__name__+".test")):
 
 
     # Save Internal State
-    filename = os.path.join(DIR_LOG, "pred_inernal.csv")
+    filename = os.path.join(DIR_LOG, "pred_inernal.h5")
     with h5py.File(filename, "w") as f:
         # Intermidiate output after applying activation functions
         f.create_group('post_act')
