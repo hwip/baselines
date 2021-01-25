@@ -28,8 +28,8 @@
     <mesh name="target0:Ashtray" file="target/Ashtray.stl"/>
     <mesh name="target0:Banana" scale="0.5 0.5 0.5" file="target/Banana.stl"/>
     <mesh name="target0:Baseball" file="target/Baseball.stl"/>
-    <mesh name="target0:Beerbottle" file="target/Beerbottle.stl"/>
-    <mesh name="target0:Book" scale="0.3 0.3 0.3" file="target/Book.stl"/>
+    <mesh name="target0:Beerbottle" scale="0.8 0.8 0.8" file="target/Beerbottle.stl"/>
+    <mesh name="target0:Book" scale="0.2 0.2 0.2" file="target/Book.stl"/>
     <mesh name="target0:Book2" file="target/Book2.stl"/>
     <mesh name="target0:Bottle" file="target/Bottle.stl"/>
     <mesh name="target0:Bottle2" file="target/Bottle2.stl"/>
@@ -58,7 +58,7 @@
     <mesh name="target0:Mugcup3" file="target/Mugcup3.stl"/>
     <mesh name="target0:Mugcup4" file="target/Mugcup4.stl"/>
     <mesh name="target0:Mugcup5" file="target/Mugcup5.stl"/>
-    <mesh name="target0:Needle" scale="0.2 0.2 0.2" file="target/Needle.stl"/>
+    <mesh name="target0:Needle" scale="0.1 0.1 0.1" file="target/Needle.stl"/>
     <mesh name="target0:Peer" file="target/Peer.stl"/>
     <mesh name="target0:Pen" scale="0.2 0.2 0.2" file="target/Pen.stl"/>
     <mesh name="target0:Pench" file="target/Pench.stl"/>

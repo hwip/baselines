@@ -44,17 +44,17 @@
         </body>
 
         <body name="banana" pos="0.7 0.87 0.2">
-            <geom name="banana:C_target" friction="1.5 0.005 0.0001" type="mesh" mesh="target0:Banana" euler="1.57 1.57 1.57"></geom>
+            <geom name="banana:C_target" friction="1.5 0.005 0.0001" type="mesh" mesh="target0:Banana" density="100" euler="1.57 1.57 1.57"></geom>
             <joint name="banana:joint" type="free" damping="0.01"></joint>
         </body>
 
         <body name="beerbottle" pos="0.7 1.17 0.22">
-            <geom name="beerbottle:C_target" friction="1.5 0.005 0.0001" type="mesh" mesh="target0:Beerbottle" euler="0 1.57 0"></geom>
+            <geom name="beerbottle:C_target" friction="1.5 0.005 0.0001" type="mesh" density="100" mesh="target0:Beerbottle" euler="0 1.57 0"></geom>
             <joint name="beerbottle:joint" type="free" damping="0.01"></joint>
         </body>
 
-        <body name="book" pos="0.7 0.57 0.25">
-            <geom name="book:C_target" friction="1.5 0.005 0.0001" type="mesh" mesh="target0:Book" euler="1.57 1.57 0"></geom>
+        <body name="book" pos="0.7 0.57 0.22">
+            <geom name="book:C_target" friction="1.5 0.005 0.0001" type="mesh" mesh="target0:Book" density="100" euler="1.57 1.57 0"></geom>
             <joint name="book:joint" type="free" damping="0.01"></joint>
         </body>
 
@@ -63,13 +63,13 @@
             <joint name="needle:joint" type="free" damping="0.01"></joint>
         </body>
 
-        <body name="pen" pos="1.3 0.57 0.25">
+        <body name="pen" pos="1.4 0.57 0.18">
             <geom name="pen:C_target" friction="1.5 0.005 0.0001" type="mesh" mesh="target0:Pen" euler="1.57 1.57 0"></geom>
             <joint name="pen:joint" type="free" damping="0.01"></joint>
         </body>
 
         <body name="teacup" pos="1.3 1.17 0.24">
-            <geom name="teacup:C_target" friction="1.5 0.005 0.0001" type="mesh" mesh="target0:Teacup" euler="-1.57 1.57 0"></geom>
+            <geom name="teacup:C_target" friction="1.5 0.005 0.0001" type="mesh" mesh="target0:Teacup" euler="0 0.25 1.57"></geom>
             <joint name="teacup:joint" type="free" damping="0.01"></joint>
         </body>
 
