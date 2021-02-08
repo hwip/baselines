@@ -113,8 +113,6 @@ class RolloutWorker:
             if u.ndim == 1:
                 # The non-batched case should still have a reasonable shape.
                 u = u.reshape(1, -1)
-
-                
             o_new = np.empty((self.rollout_batch_size, self.dims['o']))
             ag_new = np.empty((self.rollout_batch_size, self.dims['g']))
             success = np.zeros(self.rollout_batch_size)
@@ -127,7 +125,9 @@ class RolloutWorker:
                     if 'is_success' in info:
                         success[i] = info['is_success']
                         # --- nishimura
-                        success_u.append(u[i])
+                        if success[i] > 0:
+                           success_u.append(u[i])
+
                         if len(success_u)>=10:
                            pca = PCA()
                            pca.fit(success_u)
@@ -187,7 +187,7 @@ class RolloutWorker:
             self.Q_history.append(np.mean(Qs))
         self.n_episodes += self.rollout_batch_size
 
-        return convert_episode_to_batch_major(episode)
+        return convert_episode_to_batch_major(episode), success_u # motoda
 
     def clear_history(self):
         """Clears all histories that are used for statistics
