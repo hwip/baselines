@@ -140,7 +140,7 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
 
             reward = -(10. * d_pos) # d_pos : distance_error
             if os.path.exists("variance_ratio.npy"):
-                vr = np.load("variance_ration.npy")
+                vr = np.load("variance_ratio.npy")
                 l = np.sum(vr[:5]) # 5 components
                 reward += 1.0*l
                 os.remove("variance_ratio.npy")	

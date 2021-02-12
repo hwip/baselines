@@ -116,6 +116,8 @@ class RolloutWorker:
             o_new = np.empty((self.rollout_batch_size, self.dims['o']))
             ag_new = np.empty((self.rollout_batch_size, self.dims['g']))
             success = np.zeros(self.rollout_batch_size)
+
+            success_u = []
             # compute new states and observations
             for i in range(self.rollout_batch_size):
                 try:

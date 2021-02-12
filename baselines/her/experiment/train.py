@@ -49,6 +49,7 @@ def train(policy, rollout_worker, evaluator,
         clogger.info("Start: Epoch {}/{}".format(epoch, n_epochs))
         # train
         rollout_worker.clear_history()
+        success_u = []
         for _ in range(n_cycles):
             episode, success_tmp = rollout_worker.generate_rollouts()
             # clogger.info("Episode = {}".format(episode.keys()))
