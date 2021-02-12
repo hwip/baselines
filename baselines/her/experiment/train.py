@@ -44,6 +44,12 @@ def train(policy, rollout_worker, evaluator,
     logger.info("Training...")
     best_success_rate = -1
 
+    # motoda
+    all_success_u = [] # motoda
+    #if os.path.exists("initial_variance_ratio.npy"):
+    #    init_success_u = np.load("initial_variance_ratio.npy")
+    #    adll_success_u += init_success_u
+
     if policy.bc_loss == 1: policy.initDemoBuffer(demo_file) #initialize demo buffer if training with demonstrations
     for epoch in range(n_epochs):
         clogger.info("Start: Epoch {}/{}".format(epoch, n_epochs))
@@ -96,6 +102,8 @@ def train(policy, rollout_worker, evaluator,
             np.save(grasp_path, success_u)
             # --
 
+        all_success_u += success_u
+
         # make sure that different threads have different seeds
         local_uniform = np.random.uniform(size=(1,))
         root_uniform = local_uniform.copy()
@@ -103,10 +111,12 @@ def train(policy, rollout_worker, evaluator,
         if rank != 0:
             assert local_uniform[0] != root_uniform[0]
 
+    
+
 
 def launch(
     env, logdir, n_epochs, num_cpu, seed, replay_strategy, policy_save_interval, clip_return,
-        demo_file, logdir_tf=None, override_params={}, save_policies=True,
+        demo_file, logdir_tf=None, logdir_tf_init=None, override_params={}, save_policies=True, 
 ):
     # Fork for multi-CPU MPI implementation.
     if num_cpu > 1:
@@ -170,6 +180,12 @@ def launch(
         clogger.info("Create tc.Saver()")
         import tensorflow as tf
         saver = tf.train.Saver()
+
+    # -- Motoda---------------------------------
+    # Load Learned Parameters
+    if logdir_tf_init:
+        saver.restore(policy.sess, logdir_tf_init)
+    # -------------------------------------------
     
 
     rollout_params = {
@@ -224,6 +240,7 @@ def launch(
 @click.option('--clip_return', type=int, default=1, help='whether or not returns should be clipped')
 @click.option('--demo_file', type=str, default = 'PATH/TO/DEMO/DATA/FILE.npz', help='demo data file path')
 @click.option('--logdir_tf', type=str, default=None, help='the path to save tf.variables.')
+@click.option('--logdir_tf_init', type=str, default=None, help='the path to load tf.variables.')
 def main(**kwargs):
     clogger.info("Main Func @her.experiment.train")
     launch(**kwargs)

@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import random
 
 from gym import utils, error
 # from gym.envs.robotics import rotations, hand_env
@@ -31,7 +32,7 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
     def __init__(
         self, model_path, target_position, target_rotation,
         target_position_range, reward_type, initial_qpos={},
-        randomize_initial_position=True, randomize_initial_rotation=True, randomize_object=True,
+        randomize_initial_position=True, randomize_initial_rotation=True, randomize_object=True, 
         distance_threshold=0.01, rotation_threshold=0.1, n_substeps=20, relative_control=False,
         ignore_z_target_rotation=False
     ):
@@ -74,9 +75,9 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
         # -- motoda
         self.object_list = ["box:joint", "apple:joint", "banana:joint", "beerbottle:joint", "book:joint",	
                     "needle:joint", "pen:joint", "teacup:joint"] 
-        #self.object = self.object_list[random.randrange(0, 8, 1)]	
-        self.target_id = 0 # -- box に固定
-        self.object = self.object_list[self.target_id]
+        self.object = self.object_list[random.randrange(0, 8, 1)] # random
+        #self.target_id = 4 # -- box に固定
+        #self.object = self.object_list[self.target_id]
         self.init_object_qpos = np.array([1, 0.87, 0.2, 1, 0, 0, 0])
         # --
 
@@ -166,7 +167,8 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
         self.sim.forward()
 
         #initial_qpos = self.sim.data.get_joint_qpos(self.object).copy()
-        self.object = self.object_list[self.target_id]
+        #self.object = self.object_list[self.target_id] # Designited
+        self.object = self.object_list[random.randrange(0, 8, 1)] # random
         initial_qpos = self.init_object_qpos
         initial_pos, initial_quat = initial_qpos[:3], initial_qpos[3:]
         assert initial_qpos.shape == (7,)
@@ -322,7 +324,7 @@ class HandPenEnv(ManipulateEnv):
 
 
 class GraspBlockEnv(ManipulateEnv):
-    def __init__(self, target_position='random', target_rotation='xyz', reward_type=None):
+    def __init__(self, target_position='random', target_rotation='xyz', reward_type='sparse'):
         super(GraspBlockEnv, self).__init__(
             model_path=GRASP_BLOCK_XML, target_position=target_position,
             target_rotation=target_rotation,

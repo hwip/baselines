@@ -68,7 +68,7 @@ class RolloutWorker:
         for i in range(self.rollout_batch_size):
             self.reset_rollout(i)
 
-    def generate_rollouts(self, is_train=True):
+    def generate_rollouts(self, is_train=True, grasp_success_u=[]):
         """Performs `rollout_batch_size` rollouts in parallel for time horizon `T` with the current
         policy acting on it accordingly.
         """
@@ -92,6 +92,10 @@ class RolloutWorker:
         Qs = []
 
         success_u = [] # nishimura
+        # motoda
+        if len(grasp_success_u) > 0:
+            success_u += grasp_success_u 
+
         for t in range(self.T):
             policy_output = self.policy.get_actions(
                 o, ag, self.g,
@@ -126,7 +130,7 @@ class RolloutWorker:
                         success[i] = info['is_success']
                         # --- nishimura
                         if success[i] > 0:
-                           success_u.append(u[i])
+                           success_u.append(u[i])wa
 
                         if len(success_u)>=10:
                            pca = PCA()
