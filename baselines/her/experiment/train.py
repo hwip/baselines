@@ -38,6 +38,8 @@ def train(policy, rollout_worker, evaluator,
     latest_policy_path = os.path.join(logger.get_dir(), 'policy_latest.pkl')
     best_policy_path = os.path.join(logger.get_dir(), 'policy_best.pkl')
     periodic_policy_path = os.path.join(logger.get_dir(), 'policy_{}.pkl')
+    best_policy_grasp_path = os.path.join(logger.get_dir(), "grasp_dataset_on_best_policy.npy") # motoda
+    path_to_grasp_dataset = os.path.join(logger.get_dir(), "grasp_dataset_{}.npy") # motoda
 
     logger.info("Training...")
     best_success_rate = -1
@@ -48,7 +50,7 @@ def train(policy, rollout_worker, evaluator,
         # train
         rollout_worker.clear_history()
         for _ in range(n_cycles):
-            episode = rollout_worker.generate_rollouts()
+            episode, success_tmp = rollout_worker.generate_rollouts()
             # clogger.info("Episode = {}".format(episode.keys()))
             # for key in episode.keys():
             #     clogger.info(" - {}: {}".format(key, episode[key].shape))
@@ -56,6 +58,7 @@ def train(policy, rollout_worker, evaluator,
             for _ in range(n_batches):
                 policy.train()
             policy.update_target_net()
+            success_u += success_tmp # motoda
 
         # test
         evaluator.clear_history()
@@ -81,10 +84,16 @@ def train(policy, rollout_worker, evaluator,
             logger.info('New best success rate: {}. Saving policy to {} ...'.format(best_success_rate, best_policy_path))
             evaluator.save_policy(best_policy_path)
             evaluator.save_policy(latest_policy_path)
+            np.save(best_policy_grasp_path, success_u)
         if rank == 0 and policy_save_interval > 0 and epoch % policy_save_interval == 0 and save_policies:
             policy_path = periodic_policy_path.format(epoch)
             logger.info('Saving periodic policy to {} ...'.format(policy_path))
             evaluator.save_policy(policy_path)
+            # -- motoda added
+            grasp_path = path_to_grasp_dataset.format(epoch)
+            logger.info('Saving grasp pose: {} grasps. Saving policy to {} ...'.format(len(success_u), grasp_path))
+            np.save(grasp_path, success_u)
+            # --
 
         # make sure that different threads have different seeds
         local_uniform = np.random.uniform(size=(1,))

@@ -137,7 +137,14 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
             d_pos, d_rot = self._goal_distance(achieved_goal, goal)
             # We weigh the difference in position to avoid that `d_pos` (in meters) is completely
             # dominated by `d_rot` (in radians).
-            return -(10. * d_pos + d_rot)
+
+            reward = -(10. * d_pos) # d_pos : distance_error
+            if os.path.exists("variance_ratio.npy"):
+                vr = np.load("variance_ration.npy")
+                l = np.sum(vr[:5]) # 5 components
+                reward += 1.0*l
+                os.remove("variance_ratio.npy")	
+            return reward
 
     # RobotEnv methods
     # ----------------------------
@@ -314,7 +321,7 @@ class HandPenEnv(ManipulateEnv):
 
 
 class GraspBlockEnv(ManipulateEnv):
-    def __init__(self, target_position='random', target_rotation='xyz', reward_type='sparse'):
+    def __init__(self, target_position='random', target_rotation='xyz', reward_type=None):
         super(GraspBlockEnv, self).__init__(
             model_path=GRASP_BLOCK_XML, target_position=target_position,
             target_rotation=target_rotation,
