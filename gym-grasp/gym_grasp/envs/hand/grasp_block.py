@@ -62,6 +62,8 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
             rotation_threshold (float, in radians): the threshold after which the rotation of a goal is considered achieved
             n_substeps (int): number of substeps the simulation runs on every call to step
             relative_control (boolean): whether or not the hand is actuated in absolute joint positions or relative to the current state
+            target_id (int): target id
+            num_axis (int): the number of components
         """
         self.target_position = target_position
         self.target_rotation = target_rotation
@@ -78,8 +80,9 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
                             "needle:joint", "pen:joint", "teacup:joint"]
         self.target_id = target_id
         self.num_axis = num_axis # the number of components
+        self.randomize_object = randomize_object # random target (boolean)
 
-        if randomize_object == True:
+        if self.randomize_object == True:
             self.object = self.object_list[random.randrange(0, 8, 1)] # in case of randomly selected target
         else:
             self.object = self.object_list[self.target_id] # target
@@ -174,7 +177,7 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
         self.sim.forward()
 
         # -- motoda
-        if randomize_object == True:
+        if self.randomize_object == True:
             self.object = self.object_list[random.randrange(0, 8, 1)] # in case of randomly selected target
         else:
             self.object = self.object_list[self.target_id] # target
