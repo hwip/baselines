@@ -75,7 +75,8 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
 
         self.object_list = ["box:joint", "apple:joint", "banana:joint", "beerbottle:joint", "book:joint",
                             "needle:joint", "pen:joint", "teacup:joint"]
-        self.object = self.object_list[random.randrange(0, 8, 1)]
+        self.object = self.object_list[0]
+        #self.object = self.object_list[random.randrange(0, 8, 1)]
         self.init_object_qpos = np.array([1, 0.87, 0.2, 1, 0, 0, 0])
 
         assert self.target_position in ['ignore', 'fixed', 'random']
@@ -137,7 +138,14 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
             d_pos, d_rot = self._goal_distance(achieved_goal, goal)
             # We weigh the difference in position to avoid that `d_pos` (in meters) is completely
             # dominated by `d_rot` (in radians).
-            return -(10. * d_pos + d_rot)
+
+            reward = -(10. * d_pos) # d_pos : distance_error
+            if os.path.exists("variance_ratio.npy"):
+                vr = np.load("variance_ratio.npy")
+                l = np.sum(vr[:5]) # 5 components
+                reward += 1.0*l
+                os.remove("variance_ratio.npy")	
+            return reward
 
     # RobotEnv methods
     # ----------------------------
@@ -158,7 +166,8 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
         self.sim.set_state(self.initial_state)
         self.sim.forward()
 
-        self.object = self.object_list[random.randrange(0, 8, 1)]
+        #self.object = self.object_list[random.randrange(0, 8, 1)]
+        self.object = self.object_list[0]
         initial_qpos = self.init_object_qpos
         initial_pos, initial_quat = initial_qpos[:3], initial_qpos[3:]
         assert initial_qpos.shape == (7,)

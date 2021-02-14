@@ -68,10 +68,14 @@ class RolloutWorker:
         for i in range(self.rollout_batch_size):
             self.reset_rollout(i)
 
-    def generate_rollouts(self, is_train=True):
+    def generate_rollouts(self, success_u=[], is_train=True):
         """Performs `rollout_batch_size` rollouts in parallel for time horizon `T` with the current
         policy acting on it accordingly.
         """
+
+        import sklearn
+        from sklearn.decomposition import PCA
+
         self.reset_all_rollouts()
 
         # compute observations
@@ -112,6 +116,7 @@ class RolloutWorker:
             o_new = np.empty((self.rollout_batch_size, self.dims['o']))
             ag_new = np.empty((self.rollout_batch_size, self.dims['g']))
             success = np.zeros(self.rollout_batch_size)
+
             # compute new states and observations
             for i in range(self.rollout_batch_size):
                 try:
@@ -120,7 +125,15 @@ class RolloutWorker:
                     curr_o_new, _, _, info = self.envs[i].step(u[i])
                     if 'is_success' in info:
                         success[i] = info['is_success']
-                    o_new[i] = curr_o_new['observation']
+                        
+                        if success[i] > 0:
+                           success_u.append(u[i])
+                        if len(success_u)>=10:
+                           pca = PCA()
+                           pca.fit(success_u)
+                           np.save("variance_ratio.npy",pca.explained_variance_ratio_)
+                        
+                        o_new[i] = curr_o_new['observation']
                     ag_new[i] = curr_o_new['achieved_goal']
                     for idx, key in enumerate(self.info_keys):
                         info_values[idx][t, i] = info[key]
@@ -174,7 +187,7 @@ class RolloutWorker:
             self.Q_history.append(np.mean(Qs))
         self.n_episodes += self.rollout_batch_size
 
-        return convert_episode_to_batch_major(episode)
+        return convert_episode_to_batch_major(episode), success_u # motoda
 
     def clear_history(self):
         """Clears all histories that are used for statistics
