@@ -68,7 +68,7 @@ class RolloutWorker:
         for i in range(self.rollout_batch_size):
             self.reset_rollout(i)
 
-    def generate_rollouts(self, is_train=True):
+    def generate_rollouts(self, success_u=[], is_train=True):
         """Performs `rollout_batch_size` rollouts in parallel for time horizon `T` with the current
         policy acting on it accordingly.
         """
@@ -117,7 +117,6 @@ class RolloutWorker:
             ag_new = np.empty((self.rollout_batch_size, self.dims['g']))
             success = np.zeros(self.rollout_batch_size)
 
-            success_u = []
             # compute new states and observations
             for i in range(self.rollout_batch_size):
                 try:

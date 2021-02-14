@@ -32,7 +32,7 @@ def mpi_average(value):
 
 def train(policy, rollout_worker, evaluator,
           n_epochs, n_test_rollouts, n_cycles, n_batches, policy_save_interval,
-          save_policies, demo_file, **kwargs):
+          save_policies, demo_file, **kwargs, logdir_init=None):
     rank = MPI.COMM_WORLD.Get_rank()
 
     latest_policy_path = os.path.join(logger.get_dir(), 'policy_latest.pkl')
@@ -40,6 +40,15 @@ def train(policy, rollout_worker, evaluator,
     periodic_policy_path = os.path.join(logger.get_dir(), 'policy_{}.pkl')
     best_policy_grasp_path = os.path.join(logger.get_dir(), "grasp_dataset_on_best_policy.npy") # motoda
     path_to_grasp_dataset = os.path.join(logger.get_dir(), "grasp_dataset_{}.npy") # motoda
+
+    # motoda -- 
+    default_grasp_set = []
+    path_to_default_grasp_dataset = os.path.joint(logdir_init, "initial_grasp_pose.npy")
+    if os.path.exists(path_to_default_grasp_dataset):
+        init_success_u = np.load(path_to_default_grasp_dataset)
+    success_u = [] # grasp pose is used in PCA
+    success_u += init_success_u
+    # ---
 
     logger.info("Training...")
     best_success_rate = -1
@@ -49,9 +58,10 @@ def train(policy, rollout_worker, evaluator,
         clogger.info("Start: Epoch {}/{}".format(epoch, n_epochs))
         # train
         rollout_worker.clear_history()
-        success_u = []
+        saved_success_u = []
         for _ in range(n_cycles):
-            episode, success_tmp = rollout_worker.generate_rollouts()
+            # success_u = [] # reset (motoda)
+            episode, success_tmp = rollout_worker.generate_rollouts(success_u)
             # clogger.info("Episode = {}".format(episode.keys()))
             # for key in episode.keys():
             #     clogger.info(" - {}: {}".format(key, episode[key].shape))
@@ -59,7 +69,7 @@ def train(policy, rollout_worker, evaluator,
             for _ in range(n_batches):
                 policy.train()
             policy.update_target_net()
-            success_u += success_tmp # motoda
+            saved_success_u += success_tmp # motoda
 
         # test
         evaluator.clear_history()
@@ -92,8 +102,8 @@ def train(policy, rollout_worker, evaluator,
             evaluator.save_policy(policy_path)
             # -- motoda added
             grasp_path = path_to_grasp_dataset.format(epoch)
-            logger.info('Saving grasp pose: {} grasps. Saving policy to {} ...'.format(len(success_u), grasp_path))
-            np.save(grasp_path, success_u)
+            logger.info('Saving grasp pose: {} grasps. Saving policy to {} ...'.format(len(saved_success_u), grasp_path))
+            np.save(grasp_path, saved_success_u)
             # --
 
         # make sure that different threads have different seeds
@@ -170,7 +180,18 @@ def launch(
         clogger.info("Create tc.Saver()")
         import tensorflow as tf
         saver = tf.train.Saver()
-    
+
+    # motoda added --
+    # Load Learned Parameters
+    if not logdir_init == None:
+        if logdir_tf == None:
+            import tensorflow as tf
+            saver = tf.train.Saver()
+        saver.restore(policy.sess, logdir_init)
+        clogger.info("Model was successflly loaded [logidr_tf={}]".format(logdir_init))
+    else:
+        logdir_init = '/tmp'
+    # ---------------
 
     rollout_params = {
         'exploit': False,
@@ -202,7 +223,7 @@ def launch(
         logdir=logdir, policy=policy, rollout_worker=rollout_worker,
         evaluator=evaluator, n_epochs=n_epochs, n_test_rollouts=params['n_test_rollouts'],
         n_cycles=params['n_cycles'], n_batches=params['n_batches'],
-        policy_save_interval=policy_save_interval, save_policies=save_policies, demo_file=demo_file)
+        policy_save_interval=policy_save_interval, save_policies=save_policies, demo_file=demo_file, logdir_init=logdir_init)
 
 
     # Save Trained Network
@@ -224,6 +245,7 @@ def launch(
 @click.option('--clip_return', type=int, default=1, help='whether or not returns should be clipped')
 @click.option('--demo_file', type=str, default = 'PATH/TO/DEMO/DATA/FILE.npz', help='demo data file path')
 @click.option('--logdir_tf', type=str, default=None, help='the path to save tf.variables.')
+@click.option('--logdir_init', type=str, default=None, help='the path to load default paramater.')
 def main(**kwargs):
     clogger.info("Main Func @her.experiment.train")
     launch(**kwargs)

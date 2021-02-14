@@ -75,7 +75,8 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
 
         self.object_list = ["box:joint", "apple:joint", "banana:joint", "beerbottle:joint", "book:joint",
                             "needle:joint", "pen:joint", "teacup:joint"]
-        self.object = self.object_list[random.randrange(0, 8, 1)]
+        self.object = self.object_list[0]
+        #self.object = self.object_list[random.randrange(0, 8, 1)]
         self.init_object_qpos = np.array([1, 0.87, 0.2, 1, 0, 0, 0])
 
         assert self.target_position in ['ignore', 'fixed', 'random']
@@ -165,7 +166,8 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
         self.sim.set_state(self.initial_state)
         self.sim.forward()
 
-        self.object = self.object_list[random.randrange(0, 8, 1)]
+        #self.object = self.object_list[random.randrange(0, 8, 1)]
+        self.object = self.object_list[0]
         initial_qpos = self.init_object_qpos
         initial_pos, initial_quat = initial_qpos[:3], initial_qpos[3:]
         assert initial_qpos.shape == (7,)
@@ -321,7 +323,7 @@ class HandPenEnv(ManipulateEnv):
 
 
 class GraspBlockEnv(ManipulateEnv):
-    def __init__(self, target_position='random', target_rotation='xyz', reward_type=None):
+    def __init__(self, target_position='random', target_rotation='xyz', reward_type='sparse'):
         super(GraspBlockEnv, self).__init__(
             model_path=GRASP_BLOCK_XML, target_position=target_position,
             target_rotation=target_rotation,
