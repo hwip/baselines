@@ -34,7 +34,8 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
         target_position_range, reward_type, initial_qpos={},
         randomize_initial_position=True, randomize_initial_rotation=True, randomize_object=True,
         distance_threshold=0.01, rotation_threshold=0.1, n_substeps=20, relative_control=False,
-        ignore_z_target_rotation=False,
+        ignore_z_target_rotation=False, 
+        target_id = 0, num_axis = 5
     ):
         """Initializes a new Hand manipulation environment.
 
@@ -75,8 +76,14 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
 
         self.object_list = ["box:joint", "apple:joint", "banana:joint", "beerbottle:joint", "book:joint",
                             "needle:joint", "pen:joint", "teacup:joint"]
-        self.object = self.object_list[0]
-        #self.object = self.object_list[random.randrange(0, 8, 1)]
+        self.target_id = target_id
+        self.num_axis = num_axis # the number of components
+
+        if randomize_object == True:
+            self.object = self.object_list[random.randrange(0, 8, 1)] # in case of randomly selected target
+        else:
+            self.object = self.object_list[self.target_id] # target
+
         self.init_object_qpos = np.array([1, 0.87, 0.2, 1, 0, 0, 0])
 
         assert self.target_position in ['ignore', 'fixed', 'random']
@@ -142,7 +149,7 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
             reward = -(10. * d_pos) # d_pos : distance_error
             if os.path.exists("variance_ratio.npy"):
                 vr = np.load("variance_ratio.npy")
-                l = np.sum(vr[:5]) # 5 components
+                l = np.sum(vr[:(self.num_axis)]) # components
                 reward += 1.0*l
                 os.remove("variance_ratio.npy")	
             return reward
@@ -166,8 +173,12 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
         self.sim.set_state(self.initial_state)
         self.sim.forward()
 
-        #self.object = self.object_list[random.randrange(0, 8, 1)]
-        self.object = self.object_list[0]
+        # -- motoda
+        if randomize_object == True:
+            self.object = self.object_list[random.randrange(0, 8, 1)] # in case of randomly selected target
+        else:
+            self.object = self.object_list[self.target_id] # target
+        # --
         initial_qpos = self.init_object_qpos
         initial_pos, initial_quat = initial_qpos[:3], initial_qpos[3:]
         assert initial_qpos.shape == (7,)
@@ -330,5 +341,11 @@ class GraspBlockEnv(ManipulateEnv):
             target_position_range=np.array([(-0.025, 0.025), (-0.025, 0.025), (0.2, 0.25)]),
             randomize_initial_position=False, reward_type=reward_type,
             distance_threshold=0.05,
-            rotation_threshold=100.0
+            rotation_threshold=100.0,
+            randomize_object=False ,target_id = 0, num_axis = 5
         )
+'''
+Object_list:
+    self.object_list = ["box:joint", "apple:joint", "banana:joint", "beerbottle:joint", "book:joint",
+                            "needle:joint", "pen:joint", "teacup:joint"]
+'''
