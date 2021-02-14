@@ -32,7 +32,7 @@ def mpi_average(value):
 
 def train(policy, rollout_worker, evaluator,
           n_epochs, n_test_rollouts, n_cycles, n_batches, policy_save_interval,
-          save_policies, demo_file, **kwargs, logdir_init=None):
+          save_policies, demo_file, logdir_init, **kwargs):
     rank = MPI.COMM_WORLD.Get_rank()
 
     latest_policy_path = os.path.join(logger.get_dir(), 'policy_latest.pkl')
@@ -41,14 +41,21 @@ def train(policy, rollout_worker, evaluator,
     best_policy_grasp_path = os.path.join(logger.get_dir(), "grasp_dataset_on_best_policy.npy") # motoda
     path_to_grasp_dataset = os.path.join(logger.get_dir(), "grasp_dataset_{}.npy") # motoda
 
+    all_success_grasp_path = os.path.join(logger.get_dir(), "total_grasp_dataset.npy") # motoda
+
     # motoda -- 
     default_grasp_set = []
-    path_to_default_grasp_dataset = os.path.joint(logdir_init, "initial_grasp_pose.npy")
+    path_to_default_grasp_dataset = "model/initial_grasp_pose.npy"
     if os.path.exists(path_to_default_grasp_dataset):
         init_success_u = np.load(path_to_default_grasp_dataset)
-    success_u = [] # grasp pose is used in PCA
-    success_u += init_success_u
+    else:
+        init_success_u = []
+    success_u = init_success_u.tolist()
     # ---
+
+    # motoda --
+    all_success_u = [] # Dumping  grasp_pose
+    # --
 
     logger.info("Training...")
     best_success_rate = -1
@@ -113,10 +120,17 @@ def train(policy, rollout_worker, evaluator,
         if rank != 0:
             assert local_uniform[0] != root_uniform[0]
 
+        all_success_u += saved_success_u # motoda
+
+    # motoda --
+    # Dumping the total success_pose
+    logger.info('Saving grasp pose: {} grasps. Saving policy to {} ...'.format(len(all_success_u), all_success_grasp_path))
+    np.save(all_success_grasp_path, saved_success_u)
+    # --
 
 def launch(
     env, logdir, n_epochs, num_cpu, seed, replay_strategy, policy_save_interval, clip_return,
-        demo_file, logdir_tf=None, override_params={}, save_policies=True,
+        demo_file, logdir_tf=None, override_params={}, save_policies=True, logdir_init=None
 ):
     # Fork for multi-CPU MPI implementation.
     if num_cpu > 1:
