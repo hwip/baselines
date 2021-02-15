@@ -127,7 +127,7 @@ class RolloutWorker:
                         success[i] = info['is_success']
                         
                         if success[i] > 0:
-                           success_u.append(u[i])
+                           success_u.append(u[i][0:20])
                         if len(success_u)>=10:
                            pca = PCA()
                            pca.fit(success_u)

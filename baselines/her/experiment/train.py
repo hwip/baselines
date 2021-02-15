@@ -48,6 +48,7 @@ def train(policy, rollout_worker, evaluator,
     path_to_default_grasp_dataset = "model/initial_grasp_pose.npy"
     if os.path.exists(path_to_default_grasp_dataset):
         init_success_u = np.load(path_to_default_grasp_dataset)
+        print ("Num of grasp : {}".format(len(init_success_u)))
     else:
         init_success_u = []
     success_u = init_success_u.tolist()
@@ -67,7 +68,7 @@ def train(policy, rollout_worker, evaluator,
         rollout_worker.clear_history()
         saved_success_u = []
         for _ in range(n_cycles):
-            # success_u = [] # reset (motoda)
+            success_u = [] # reset (motoda)
             episode, success_tmp = rollout_worker.generate_rollouts(success_u)
             # clogger.info("Episode = {}".format(episode.keys()))
             # for key in episode.keys():
@@ -259,7 +260,7 @@ def launch(
 @click.option('--clip_return', type=int, default=1, help='whether or not returns should be clipped')
 @click.option('--demo_file', type=str, default = 'PATH/TO/DEMO/DATA/FILE.npz', help='demo data file path')
 @click.option('--logdir_tf', type=str, default=None, help='the path to save tf.variables.')
-@click.option('--logdir_init', type=str, default=None, help='the path to load default paramater.')
+@click.option('--logdir_init', type=str, default='model/init', help='the path to load default paramater.') # There are meta data at model/init
 def main(**kwargs):
     clogger.info("Main Func @her.experiment.train")
     launch(**kwargs)
