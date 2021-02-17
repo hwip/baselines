@@ -75,6 +75,8 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
         self.rotation_threshold = rotation_threshold
         self.reward_type = reward_type
         self.ignore_z_target_rotation = ignore_z_target_rotation
+        
+        self.variance_ratio = []
 
         self.object_list = ["box:joint", "apple:joint", "banana:joint", "beerbottle:joint", "book:joint",
                             "needle:joint", "pen:joint", "teacup:joint"]
@@ -150,11 +152,22 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
             # dominated by `d_rot` (in radians).
 
             reward = -(10. * d_pos) # d_pos : distance_error
-            if os.path.exists("variance_ratio.npy"):
-                vr = np.load("variance_ratio.npy")
-                l = np.sum(vr[:(self.num_axis)]) # components
+
+            #if os.path.exists("variance_ratio.npy"):
+            #    vr = np.load("variance_ratio.npy")
+            #    l = np.sum(vr[:(self.num_axis)]) # components
+            #    reward += 1.0*l
+            #    os.remove("variance_ratio.npy")
+
+            # -- reward Contributed rate
+            if len(self.variance_ratio) > 0:
+                vr = self.variance_ratio[-1]
+                l = np.sum(vr[:(self.num_axis)])
+                self.variance_ratio = []
+
                 reward += 1.0*l
-                os.remove("variance_ratio.npy")	
+            # --
+             
             return reward
 
     # RobotEnv methods
@@ -337,7 +350,7 @@ class HandPenEnv(ManipulateEnv):
 
 
 class GraspBlockEnv(ManipulateEnv):
-    def __init__(self, target_position='random', target_rotation='xyz', reward_type='sparse'):
+    def __init__(self, target_position='random', target_rotation='xyz', reward_type=None):
         super(GraspBlockEnv, self).__init__(
             model_path=GRASP_BLOCK_XML, target_position=target_position,
             target_rotation=target_rotation,

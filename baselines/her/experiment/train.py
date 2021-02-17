@@ -48,10 +48,11 @@ def train(policy, rollout_worker, evaluator,
     path_to_default_grasp_dataset = "model/initial_grasp_pose.npy"
     if os.path.exists(path_to_default_grasp_dataset):
         init_success_u = np.load(path_to_default_grasp_dataset)
-        print ("Num of grasp : {}".format(len(init_success_u)))
+        print ("Num of grasp : {}, type : {}".format(len(init_success_u), type(init_success_u)))
+        
     else:
         init_success_u = []
-    success_u = init_success_u.tolist()
+    success_u = init_success_u.tolist() # Load Initial Grasp Pose set
     # ---
 
     # motoda --
@@ -204,8 +205,6 @@ def launch(
             saver = tf.train.Saver()
         saver.restore(policy.sess, logdir_init)
         clogger.info("Model was successflly loaded [logidr_tf={}]".format(logdir_init))
-    else:
-        logdir_init = '/tmp'
     # ---------------
 
     rollout_params = {

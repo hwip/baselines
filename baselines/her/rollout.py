@@ -131,8 +131,9 @@ class RolloutWorker:
                         if len(success_u)>=10:
                            pca = PCA()
                            pca.fit(success_u)
-                           np.save("variance_ratio.npy",pca.explained_variance_ratio_)
-                        
+                           # np.save("variance_ratio.npy",pca.explained_variance_ratio_)
+                           self.envs[i].variance_ratio.append(pca.explained_variance_ratio_)
+
                         o_new[i] = curr_o_new['observation']
                     ag_new[i] = curr_o_new['achieved_goal']
                     for idx, key in enumerate(self.info_keys):
