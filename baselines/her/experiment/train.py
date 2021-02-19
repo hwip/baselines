@@ -44,15 +44,17 @@ def train(policy, rollout_worker, evaluator,
     all_success_grasp_path = os.path.join(logger.get_dir(), "total_grasp_dataset.npy") # motoda
 
     # motoda -- 
-    default_grasp_set = []
+    success_u = []
+    init_success_u = []
     path_to_default_grasp_dataset = "model/initial_grasp_pose.npy"
     if os.path.exists(path_to_default_grasp_dataset):
-        init_success_u = np.load(path_to_default_grasp_dataset)
-        print ("Num of grasp : {}, type : {}".format(len(init_success_u), type(init_success_u)))
-        
+        init_success_u = np.load(path_to_default_grasp_dataset) # Load Initial Grasp Pose set
+        init_success_u = (init_success_u.tolist()) 
+        for tmp_suc in init_success_u:
+            success_u.append(tmp_suc[0:20])
+        print ("Num of grasp : {} ".format(len (success_u)))
     else:
-        init_success_u = []
-    success_u = init_success_u.tolist() # Load Initial Grasp Pose set
+        print ("No initial grasp pose")
     # ---
 
     # motoda --
@@ -69,7 +71,6 @@ def train(policy, rollout_worker, evaluator,
         rollout_worker.clear_history()
         saved_success_u = []
         for _ in range(n_cycles):
-            success_u = [] # reset (motoda)
             episode, success_tmp = rollout_worker.generate_rollouts(success_u)
             # clogger.info("Episode = {}".format(episode.keys()))
             # for key in episode.keys():
@@ -114,6 +115,10 @@ def train(policy, rollout_worker, evaluator,
             logger.info('Saving grasp pose: {} grasps. Saving policy to {} ...'.format(len(saved_success_u), grasp_path))
             np.save(grasp_path, saved_success_u)
             # --
+            
+            # -- reset : grasp Pose -------
+            success_u = [] # reset (motoda)
+            # -----------------------------
 
         # make sure that different threads have different seeds
         local_uniform = np.random.uniform(size=(1,))
