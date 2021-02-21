@@ -68,7 +68,7 @@ class RolloutWorker:
         for i in range(self.rollout_batch_size):
             self.reset_rollout(i)
 
-    def generate_rollouts(self, success_u=[], is_train=True):
+    def generate_rollouts(self, min_num, num_axis, reward_lambda, success_u=[], is_train=True): # nishimura
         """Performs `rollout_batch_size` rollouts in parallel for time horizon `T` with the current
         policy acting on it accordingly.
         """
@@ -119,6 +119,10 @@ class RolloutWorker:
 
             # compute new states and observations
             for i in range(self.rollout_batch_size):
+                # -- nishimura 雑実装
+                self.envs[i].num_axis = num_axis
+                self.envs[i].reward_lambda = reward_lambda
+                # --
                 try:
                     # We fully ignore the reward here because it will have to be re-computed
                     # for HER.
@@ -128,10 +132,9 @@ class RolloutWorker:
                         
                         if success[i] > 0:
                            success_u.append(u[i][0:20])
-                        if len(success_u)>=10:
+                        if len(success_u)>=min_num: # nishimura
                            pca = PCA()
                            pca.fit(success_u)
-                           # np.save("variance_ratio.npy",pca.explained_variance_ratio_)
                            self.envs[i].variance_ratio.append(pca.explained_variance_ratio_)
 
                         o_new[i] = curr_o_new['observation']

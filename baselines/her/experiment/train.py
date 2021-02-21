@@ -30,7 +30,8 @@ def mpi_average(value):
     return mpi_moments(np.array(value))[0]
 
 
-def train(policy, rollout_worker, evaluator,
+def train(min_num, max_num, num_axis, reward_lambda, # nishimura
+          policy, rollout_worker, evaluator,
           n_epochs, n_test_rollouts, n_cycles, n_batches, policy_save_interval,
           save_policies, demo_file, logdir_init, **kwargs):
     rank = MPI.COMM_WORLD.Get_rank()
@@ -71,7 +72,7 @@ def train(policy, rollout_worker, evaluator,
         rollout_worker.clear_history()
         saved_success_u = []
         for _ in range(n_cycles):
-            episode, success_tmp = rollout_worker.generate_rollouts(success_u)
+            episode, success_tmp = rollout_worker.generate_rollouts(min_num=min_num,num_axis=num_axis,reward_lambda=reward_lambda,success_u=success_u) # nishimura, 雑実装
             # clogger.info("Episode = {}".format(episode.keys()))
             # for key in episode.keys():
             #     clogger.info(" - {}: {}".format(key, episode[key].shape))
@@ -84,7 +85,7 @@ def train(policy, rollout_worker, evaluator,
         # test
         evaluator.clear_history()
         for _ in range(n_test_rollouts):
-            evaluator.generate_rollouts()
+            evaluator.generate_rollouts(min_num=min_num,num_axis=num_axis,reward_lambda=reward_lambda) # nishimura, 雑実装
 
         # record logs
         logger.record_tabular('epoch', epoch)
@@ -117,8 +118,10 @@ def train(policy, rollout_worker, evaluator,
             # --
             
             # -- reset : grasp Pose -------
-            success_u = [] # reset (motoda)
+            # success_u = [] # reset (motoda)
             # -----------------------------
+
+        success_u = success_u[-max_num:] # nishimura
 
         # make sure that different threads have different seeds
         local_uniform = np.random.uniform(size=(1,))
@@ -136,7 +139,7 @@ def train(policy, rollout_worker, evaluator,
     # --
 
 def launch(
-    env, logdir, n_epochs, num_cpu, seed, replay_strategy, policy_save_interval, clip_return,
+    env, logdir, n_epochs, min_num, max_num, num_axis, reward_lambda, num_cpu, seed, replay_strategy, policy_save_interval, clip_return,
         demo_file, logdir_tf=None, override_params={}, save_policies=True, logdir_init=None
 ):
     # Fork for multi-CPU MPI implementation.
@@ -239,6 +242,7 @@ def launch(
     evaluator.seed(rank_seed)
 
     train(
+        min_num=min_num, max_num=max_num, num_axis=num_axis, reward_lambda=reward_lambda, # nishimura
         logdir=logdir, policy=policy, rollout_worker=rollout_worker,
         evaluator=evaluator, n_epochs=n_epochs, n_test_rollouts=params['n_test_rollouts'],
         n_cycles=params['n_cycles'], n_batches=params['n_batches'],
@@ -257,6 +261,10 @@ def launch(
 @click.option('--env', type=str, default='FetchReach-v1', help='the name of the OpenAI Gym environment that you want to train on')
 @click.option('--logdir', type=str, default=None, help='the path to where logs and policy pickles should go. If not specified, creates a folder in /tmp/')
 @click.option('--n_epochs', type=int, default=50, help='the number of training epochs to run')
+@click.option('--min_num', type=int, default=100,help='minimum number of success_u whether to run PCA')
+@click.option('--max_num', type=int, default=10000,help='limit of success_u for PCA')
+@click.option('--num_axis', type=int, default=5,help='number of principal components to calculate the reward function')
+@click.option('--reward_lambda', type=float, default=1.,help='a weight for the second term of the reward function')
 @click.option('--num_cpu', type=int, default=1, help='the number of CPU cores to use (using MPI)')
 @click.option('--seed', type=int, default=0, help='the random seed used to seed both the environment and the training code')
 @click.option('--policy_save_interval', type=int, default=5, help='the interval with which policy pickles are saved. If set to 0, only the best and latest policy will be pickled.')
