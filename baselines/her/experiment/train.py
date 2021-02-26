@@ -72,7 +72,7 @@ def train(min_num, max_num, num_axis, reward_lambda, # nishimura
         rollout_worker.clear_history()
         saved_success_u = []
         for _ in range(n_cycles):
-            episode, success_tmp = rollout_worker.generate_rollouts(min_num=min_num,num_axis=num_axis,reward_lambda=reward_lambda,success_u=success_u) # nishimura, 雑実装
+            episode, success_tmp = rollout_worker.generate_rollouts(min_num=min_num,num_axis=num_axis,reward_lambda=reward_lambda,success_u=success_u) # nishimura
             # clogger.info("Episode = {}".format(episode.keys()))
             # for key in episode.keys():
             #     clogger.info(" - {}: {}".format(key, episode[key].shape))
@@ -85,8 +85,7 @@ def train(min_num, max_num, num_axis, reward_lambda, # nishimura
         # test
         evaluator.clear_history()
         for _ in range(n_test_rollouts):
-            evaluator.generate_rollouts(min_num=min_num,num_axis=num_axis,reward_lambda=reward_lambda) # nishimura, 雑実装
-
+            evaluator.generate_rollouts(min_num=min_num,num_axis=num_axis,reward_lambda=reward_lambda) # nishimura
         # record logs
         logger.record_tabular('epoch', epoch)
         for key, val in evaluator.logs('test'):

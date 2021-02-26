@@ -101,6 +101,10 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
             relative_control=relative_control)
         utils.EzPickle.__init__(self)
 
+    def set_initial_param(self, _reward_lambda, _num_axis):
+        self.reward_lambda = _reward_lambda # a weight for the second term of the reward function (float)
+        self.num_axis = _num_axis # the number of components
+
     def _get_achieved_goal(self):
         # Object position and rotation.
         object_qpos = self.sim.data.get_joint_qpos(self.object)
@@ -163,7 +167,7 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
                 vr = self.variance_ratio[-1]
                 l = np.sum(vr[:(self.num_axis)])
                 self.variance_ratio = []
-
+                
                 reward -= self.reward_lambda*(1.-l) # nishimura
             # --
              
