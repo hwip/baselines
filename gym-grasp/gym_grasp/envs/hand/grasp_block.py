@@ -35,7 +35,7 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
         randomize_initial_position=True, randomize_initial_rotation=True, randomize_object=True,
         distance_threshold=0.01, rotation_threshold=0.1, n_substeps=20, relative_control=False,
         ignore_z_target_rotation=False, 
-        target_id = 0, num_axis = 5
+        target_id = 0, num_axis = 5, reward_lambda=1.
     ):
         """Initializes a new Hand manipulation environment.
 
@@ -64,6 +64,7 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
             relative_control (boolean): whether or not the hand is actuated in absolute joint positions or relative to the current state
             target_id (int): target id
             num_axis (int): the number of components
+            reward_lambda (float) : a weight for the second term of the reward function
         """
         self.target_position = target_position
         self.target_rotation = target_rotation
@@ -75,12 +76,15 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
         self.rotation_threshold = rotation_threshold
         self.reward_type = reward_type
         self.ignore_z_target_rotation = ignore_z_target_rotation
+        
+        self.variance_ratio = []
 
         self.object_list = ["box:joint", "apple:joint", "banana:joint", "beerbottle:joint", "book:joint",
                             "needle:joint", "pen:joint", "teacup:joint"]
         self.target_id = target_id
         self.num_axis = num_axis # the number of components
         self.randomize_object = randomize_object # random target (boolean)
+        self.reward_lambda = reward_lambda # a weight for the second term of the reward function (float)
 
         if self.randomize_object == True:
             self.object = self.object_list[random.randrange(0, 8, 1)] # in case of randomly selected target
@@ -96,6 +100,10 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
             self, model_path, n_substeps=n_substeps, initial_qpos=initial_qpos,
             relative_control=relative_control)
         utils.EzPickle.__init__(self)
+
+    def set_initial_param(self, _reward_lambda, _num_axis):
+        self.reward_lambda = _reward_lambda # a weight for the second term of the reward function (float)
+        self.num_axis = _num_axis # the number of components
 
     def _get_achieved_goal(self):
         # Object position and rotation.
@@ -149,12 +157,20 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
             # We weigh the difference in position to avoid that `d_pos` (in meters) is completely
             # dominated by `d_rot` (in radians).
 
-            reward = -(10. * d_pos) # d_pos : distance_error
-            if os.path.exists("variance_ratio.npy"):
-                vr = np.load("variance_ratio.npy")
-                l = np.sum(vr[:(self.num_axis)]) # components
-                reward += 1.0*l
-                os.remove("variance_ratio.npy")	
+            # -- nishimura
+            #reward = -(10. * d_pos) # d_pos : distance_error
+            reward = self._is_success(achieved_goal, goal)-1. # default
+            # --
+
+            # -- reward Contributed rate
+            if len(self.variance_ratio) > 0:
+                vr = self.variance_ratio[-1]
+                l = np.sum(vr[:(self.num_axis)])
+                self.variance_ratio = []
+                
+                reward -= self.reward_lambda*(1.-l) # nishimura
+            # --
+             
             return reward
 
     # RobotEnv methods
@@ -337,7 +353,7 @@ class HandPenEnv(ManipulateEnv):
 
 
 class GraspBlockEnv(ManipulateEnv):
-    def __init__(self, target_position='random', target_rotation='xyz', reward_type='sparse'):
+    def __init__(self, target_position='random', target_rotation='xyz', reward_type=None):
         super(GraspBlockEnv, self).__init__(
             model_path=GRASP_BLOCK_XML, target_position=target_position,
             target_rotation=target_rotation,

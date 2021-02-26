@@ -13,6 +13,32 @@ clogger = CustomLoggerObject()
 clogger.info("MyLogger is working!!")
 # --------------------------------------------------------------------------------------
 
+# --Hara work (add by motoda)------
+import time
+import tensorflow as tf
+def tf_pca(data_tensor):
+    mean = tf.reduce_mean(data_tensor, axis=0, keepdims=True)
+    mean_adj = tf.subtract(data_tensor,mean) #行列から平均を引いているｰ>グラム行列の期待値が分散共分散行列になる（？） # mottoda modify
+    # TODO:ちょっと曖昧なので個々の関係はまた調べること
+    n_sample = tf.cast(tf.shape(data_tensor)[0]-1, tf.float32) # 不変分散で実装
+    # 特異値分解をPCAに戻すときの変換，参考文献のSVDとPCAの関係を参考
+    cov = tf.matmul(mean_adj, mean_adj, transpose_a=True) / n_sample # 分散共分散行列を計算して，期待値を計算
+    # 特異値分解
+    # S:固有値^2, U:固有ベクトルを並べたもの=主成分ベクトル, V=U^T
+    S, U, V = tf.linalg.svd(cov)
+
+    # 寄与率の計算
+    lambda_vector=tf.divide(S, n_sample) #固有値の計算
+    contribution_rate=tf.divide(lambda_vector,tf.reduce_sum(lambda_vector)) #寄与率の計算，固有値/固有値の総和で定義される
+    return contribution_rate
+def numpy_pca(data):
+    mean = np.mean(data, axis=0, keepdims=True)
+    data_mean_adj = data - mean
+    cov = np.cov(data_mean_adj, rowvar=False)
+    U, S, V = np.linalg.svd(cov)
+    contribution_rate = S / np.sum(S)
+    return contribution_rate
+# --------
 
 class RolloutWorker:
 
@@ -68,7 +94,7 @@ class RolloutWorker:
         for i in range(self.rollout_batch_size):
             self.reset_rollout(i)
 
-    def generate_rollouts(self, success_u=[], is_train=True):
+    def generate_rollouts(self, min_num, num_axis, reward_lambda, success_u=[], is_train=True): # nishimura
         """Performs `rollout_batch_size` rollouts in parallel for time horizon `T` with the current
         policy acting on it accordingly.
         """
@@ -119,6 +145,9 @@ class RolloutWorker:
 
             # compute new states and observations
             for i in range(self.rollout_batch_size):
+                # -- nishimura 雑実装
+                self.envs[i].set_initial_param(_reward_lambda=reward_lambda, _num_axis=num_axis)
+                # --
                 try:
                     # We fully ignore the reward here because it will have to be re-computed
                     # for HER.
@@ -128,17 +157,22 @@ class RolloutWorker:
                         
                         if success[i] > 0:
                            success_u.append(u[i][0:20])
-                        if len(success_u)>=10:
-                           pca = PCA()
-                           pca.fit(success_u)
-                           np.save("variance_ratio.npy",pca.explained_variance_ratio_)
-                        
+                        if len(success_u)>=min_num: # nishimura
+                            # start = time.time() # Time Check
+                            
+                            # Powered by Skit-learn
+                            pca = PCA()
+                            pca.fit(success_u)
+                            self.envs[i].variance_ratio.append(pca.explained_variance_ratio_)
+
+                            # contribution_rate = tf_pca (success_u) # Powered by Tensorflow
+                            # contribution_rate = numpy_pca (success_u) # Powered by Numpy
+                            # self.envs[i].variance_ratio.append(contribution_rate)
+
                         o_new[i] = curr_o_new['observation']
                     ag_new[i] = curr_o_new['achieved_goal']
                     for idx, key in enumerate(self.info_keys):
                         info_values[idx][t, i] = info[key]
-                    if self.render:
-                        self.envs[i].render()
                 except MujocoException as e:
                     return self.generate_rollouts()
 
