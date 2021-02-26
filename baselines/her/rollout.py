@@ -161,16 +161,13 @@ class RolloutWorker:
                             # start = time.time() # Time Check
                             
                             # Powered by Skit-learn
-                            #pca = PCA()
-                            #pca.fit(success_u)
-                            #self.envs[i].variance_ratio.append(pca.explained_variance_ratio_)
+                            pca = PCA()
+                            pca.fit(success_u)
+                            self.envs[i].variance_ratio.append(pca.explained_variance_ratio_)
 
-                            #contribution_rate = tf_pca (success_u) # Powered by Tensorflow
-                            contribution_rate = numpy_pca (success_u) # Powered by Numpy
-                            self.envs[i].variance_ratio.append(contribution_rate)
-                                    
-                            # elapsed_time = time.time() - start # Time Check
-                            # print ("elapsed_time:{0}".format(elapsed_time) + "[sec]") # Time Check
+                            # contribution_rate = tf_pca (success_u) # Powered by Tensorflow
+                            # contribution_rate = numpy_pca (success_u) # Powered by Numpy
+                            # self.envs[i].variance_ratio.append(contribution_rate)
 
                         o_new[i] = curr_o_new['observation']
                     ag_new[i] = curr_o_new['achieved_goal']

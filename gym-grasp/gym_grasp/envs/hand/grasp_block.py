@@ -167,9 +167,7 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
                 vr = self.variance_ratio[-1]
                 l = np.sum(vr[:(self.num_axis)])
                 self.variance_ratio = []
-
-                print (self.num_axis)
-
+                
                 reward -= self.reward_lambda*(1.-l) # nishimura
             # --
              
