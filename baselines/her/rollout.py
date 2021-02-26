@@ -146,8 +146,7 @@ class RolloutWorker:
             # compute new states and observations
             for i in range(self.rollout_batch_size):
                 # -- nishimura 雑実装
-                self.envs[i].num_axis = num_axis
-                self.envs[i].reward_lambda = reward_lambda
+                self.envs[i].set_initial_param(_reward_lambda=reward_lambda, _num_axis=num_axis)
                 # --
                 try:
                     # We fully ignore the reward here because it will have to be re-computed
@@ -169,7 +168,7 @@ class RolloutWorker:
                             #contribution_rate = tf_pca (success_u) # Powered by Tensorflow
                             contribution_rate = numpy_pca (success_u) # Powered by Numpy
                             self.envs[i].variance_ratio.append(contribution_rate)
-                            
+                                    
                             # elapsed_time = time.time() - start # Time Check
                             # print ("elapsed_time:{0}".format(elapsed_time) + "[sec]") # Time Check
 
