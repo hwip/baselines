@@ -31,6 +31,7 @@ def mpi_average(value):
 
 
 def train(min_num, max_num, num_axis, reward_lambda, # nishimura
+          is_init_grasp, 
           policy, rollout_worker, evaluator,
           n_epochs, n_test_rollouts, n_cycles, n_batches, policy_save_interval,
           save_policies, demo_file, logdir_init, **kwargs):
@@ -46,16 +47,18 @@ def train(min_num, max_num, num_axis, reward_lambda, # nishimura
 
     # motoda -- 
     success_u = []
-    init_success_u = []
-    path_to_default_grasp_dataset = "model/initial_grasp_pose.npy"
-    if os.path.exists(path_to_default_grasp_dataset):
-        init_success_u = np.load(path_to_default_grasp_dataset) # Load Initial Grasp Pose set
-        init_success_u = (init_success_u.tolist()) 
-        for tmp_suc in init_success_u:
-            success_u.append(tmp_suc[0:20])
-        print ("Num of grasp : {} ".format(len (success_u)))
-    else:
-        print ("No initial grasp pose")
+
+    if is_init_grasp != False: # On/Off
+        init_success_u = []
+        path_to_default_grasp_dataset = "model/initial_grasp_pose.npy"
+        if os.path.exists(path_to_default_grasp_dataset):
+            init_success_u = np.load(path_to_default_grasp_dataset) # Load Initial Grasp Pose set
+            init_success_u = (init_success_u.tolist()) 
+            for tmp_suc in init_success_u:
+                success_u.append(tmp_suc[0:20])
+            print ("Num of grasp : {} ".format(len (success_u)))
+        else:
+            print ("No initial grasp pose")
     # ---
 
     # motoda --
@@ -72,7 +75,7 @@ def train(min_num, max_num, num_axis, reward_lambda, # nishimura
         rollout_worker.clear_history()
         saved_success_u = []
         for _ in range(n_cycles):
-            episode, success_tmp = rollout_worker.generate_rollouts(min_num=min_num,num_axis=num_axis,reward_lambda=reward_lambda,success_u=success_u) # nishimura
+            episode, success_tmp = rollout_worker.generate_rollouts(min_num=min_num,num_axis=num_axis,reward_lambda=reward_lambda, success_u=success_u) # nishimura
             # clogger.info("Episode = {}".format(episode.keys()))
             # for key in episode.keys():
             #     clogger.info(" - {}: {}".format(key, episode[key].shape))
@@ -138,7 +141,7 @@ def train(min_num, max_num, num_axis, reward_lambda, # nishimura
     # --
 
 def launch(
-    env, logdir, n_epochs, min_num, max_num, num_axis, reward_lambda, num_cpu, seed, replay_strategy, policy_save_interval, clip_return,
+    env, logdir, n_epochs, min_num, max_num, num_axis, reward_lambda, is_init_grasp, num_cpu, seed, replay_strategy, policy_save_interval, clip_return,
         demo_file, logdir_tf=None, override_params={}, save_policies=True, logdir_init=None
 ):
     # Fork for multi-CPU MPI implementation.
@@ -242,6 +245,7 @@ def launch(
 
     train(
         min_num=min_num, max_num=max_num, num_axis=num_axis, reward_lambda=reward_lambda, # nishimura
+        is_init_grasp=is_init_grasp,
         logdir=logdir, policy=policy, rollout_worker=rollout_worker,
         evaluator=evaluator, n_epochs=n_epochs, n_test_rollouts=params['n_test_rollouts'],
         n_cycles=params['n_cycles'], n_batches=params['n_batches'],
@@ -272,6 +276,7 @@ def launch(
 @click.option('--demo_file', type=str, default = 'PATH/TO/DEMO/DATA/FILE.npz', help='demo data file path')
 @click.option('--logdir_tf', type=str, default=None, help='the path to save tf.variables.')
 @click.option('--logdir_init', type=str, default='model/init', help='the path to load default paramater.') # There are meta data at model/init
+@click.option('--is_init_grasp', type=bool, default=True, help='Switch Initial Grasp Pose') 
 def main(**kwargs):
     clogger.info("Main Func @her.experiment.train")
     launch(**kwargs)

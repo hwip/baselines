@@ -110,6 +110,18 @@ class RolloutWorker:
         o[:] = self.initial_o
         ag[:] = self.initial_ag
 
+        # evaluate grasp
+        dtime = np.zeros(self.rollout_batch_size)
+        tmp_success_u = []
+
+        # PCA for initial grasp pose
+        tmp_variance_ratio = []
+        is_variance_ratio = False
+        if len(success_u) >= min_num:
+            pca = PCA()
+            pca.fit(success_u)
+            tmp_variance_ratio = pca.explained_variance_ratio_
+
         # generate episodes
         obs, achieved_goals, acts, goals, successes = [], [], [], [], []
         q_vals = []
@@ -145,7 +157,7 @@ class RolloutWorker:
 
             # compute new states and observations
             for i in range(self.rollout_batch_size):
-                # -- nishimura 雑実装
+                # -- nishimura
                 self.envs[i].set_initial_param(_reward_lambda=reward_lambda, _num_axis=num_axis)
                 # --
                 try:
@@ -154,20 +166,49 @@ class RolloutWorker:
                     curr_o_new, _, _, info = self.envs[i].step(u[i])
                     if 'is_success' in info:
                         success[i] = info['is_success']
-                        
-                        if success[i] > 0:
-                           success_u.append(u[i][0:20])
-                        if len(success_u)>=min_num: # nishimura
+
+                        # _/_/ _/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+
+                        # 継続の判定のため（ステップ数の後半10%になった時の判定を始める）
+                        if success[i] > 0 & t > self.T*0.9:
+                            #tmp_success_u.append(u[i][0:20])
+                            dtime[i] += 1
+                        else:
+                            dtime[i] = 0
+
+                        # 一定時間（dtime），成功判定が継続した場合，把持姿勢を追加
+                        if dtime[i] >= 5:
+                            #success_u += tmp_success_u
+                            success_u.append(u[i][0:20])
+                            is_variance_ratio = True
+
+                        # 把持姿勢が追加されていれば，新たにPCAを計算し，報酬に回す
+                        if len(success_u)>=min_num & is_variance_ratio !=False: # nishimura
                             # start = time.time() # Time Check
                             
-                            # Powered by Skit-learn
+                            # --- skitlearn ver.
                             pca = PCA()
                             pca.fit(success_u)
-                            self.envs[i].variance_ratio.append(pca.explained_variance_ratio_)
+                            tmp_variance_ratio = pca.explained_variance_ratio
+                            self.envs[i].variance_ratio.append(tmp_variance_ratio)
 
-                            # contribution_rate = tf_pca (success_u) # Powered by Tensorflow
-                            # contribution_rate = numpy_pca (success_u) # Powered by Numpy
+                            print ("1:{} 2:{} 3:{}".format(tmp_variance_ratio[0], tmp_variance_ratio[1], tmp_variance_ratio[2]))
+
+                            # --- Tensorflow ver. 
+                            # contribution_rate = tf_pca (success_u)
+                            # tmp_variance_ratio = contribution_rate
                             # self.envs[i].variance_ratio.append(contribution_rate)
+                            
+                            # ---- Numpy ver. 
+                            # contribution_rate = numpy_pca (success_u) 
+                            # tmp_variance_ratio = contribution_rate
+                            # self.envs[i].variance_ratio.append(contribution_rate)
+                            
+                            is_variance_ratio = False
+                        else:
+                            self.envs[i].variance_ratio.append(tmp_variance_ratio)
+
+                        # _/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
 
                         o_new[i] = curr_o_new['observation']
                     ag_new[i] = curr_o_new['achieved_goal']
