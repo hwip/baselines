@@ -121,7 +121,9 @@ class RolloutWorker:
             pca = PCA()
             pca.fit(success_u)
             tmp_variance_ratio = pca.explained_variance_ratio_
-
+        else:
+            tmp_variance_ratio = [0.05]*20
+    
         # generate episodes
         obs, achieved_goals, acts, goals, successes = [], [], [], [], []
         q_vals = []
@@ -168,9 +170,8 @@ class RolloutWorker:
                         success[i] = info['is_success']
 
                         # _/_/ _/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
-
                         # 継続の判定のため（ステップ数の後半10%になった時の判定を始める）
-                        if success[i] > 0 & t > self.T*0.9:
+                        if success[i] > 0 and t > self.T*0.9:
                             #tmp_success_u.append(u[i][0:20])
                             dtime[i] += 1
                         else:
@@ -179,34 +180,30 @@ class RolloutWorker:
                         # 一定時間（dtime），成功判定が継続した場合，把持姿勢を追加
                         if dtime[i] >= 5:
                             #success_u += tmp_success_u
+                            print ("apppend")
                             success_u.append(u[i][0:20])
                             is_variance_ratio = True
 
                         # 把持姿勢が追加されていれば，新たにPCAを計算し，報酬に回す
-                        if len(success_u)>=min_num & is_variance_ratio !=False: # nishimura
-                            # start = time.time() # Time Check
-                            
-                            # --- skitlearn ver.
-                            pca = PCA()
-                            pca.fit(success_u)
-                            tmp_variance_ratio = pca.explained_variance_ratio
-                            self.envs[i].variance_ratio.append(tmp_variance_ratio)
+                        # if len(success_u)>=min_num and is_variance_ratio != False: # nishimura
+                        #     # --- skitlearn ver.
+                        #     pca = PCA()
+                        #     pca.fit(success_u)
+                        #     tmp_variance_ratio = pca.explained_variance_ratio_
+                        #     self.envs[i].variance_ratio.append(tmp_variance_ratio)
 
-                            print ("1:{} 2:{} 3:{}".format(tmp_variance_ratio[0], tmp_variance_ratio[1], tmp_variance_ratio[2]))
-
-                            # --- Tensorflow ver. 
-                            # contribution_rate = tf_pca (success_u)
-                            # tmp_variance_ratio = contribution_rate
-                            # self.envs[i].variance_ratio.append(contribution_rate)
+                        #     # --- Tensorflow ver. 
+                        #     # contribution_rate = tf_pca (success_u)
+                        #     # tmp_variance_ratio = contribution_rate
+                        #     # self.envs[i].variance_ratio.append(contribution_rate)
                             
-                            # ---- Numpy ver. 
-                            # contribution_rate = numpy_pca (success_u) 
-                            # tmp_variance_ratio = contribution_rate
-                            # self.envs[i].variance_ratio.append(contribution_rate)
-                            
-                            is_variance_ratio = False
-                        else:
-                            self.envs[i].variance_ratio.append(tmp_variance_ratio)
+                        #     # ---- Numpy ver. 
+                        #     # contribution_rate = numpy_pca (success_u) 
+                        #     # tmp_variance_ratio = contribution_rate
+                        #     # self.envs[i].variance_ratio.append(contribution_rate)  
+                        #     is_variance_ratio = False
+                        # else:
+                        #     self.envs[i].variance_ratio.append(tmp_variance_ratio)
 
                         # _/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
 
