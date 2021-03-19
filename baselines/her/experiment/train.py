@@ -68,6 +68,7 @@ def train(min_num, max_num, num_axis, reward_lambda, # nishimura
     # motoda --
     all_success_u = [] # Dumping  grasp_pose
     policy.reward_lambda = reward_lambda 
+    pca = PCA(num_axis)
     # --
 
     logger.info("Training...")
@@ -106,8 +107,12 @@ def train(min_num, max_num, num_axis, reward_lambda, # nishimura
         logger.record_tabular('epoch', epoch)
         for key, val in evaluator.logs('test'):
             logger.record_tabular(key, mpi_average(val))
-        for key, val in rollout_worker.logs('train', variance_ratio=pca.explained_variance_ratio_, num_axis=num_axis, grasp_pose=success_u): # efit
-            logger.record_tabular(key, mpi_average(val))
+        if len(success_u) > min_num:
+            for key, val in rollout_worker.logs('train', variance_ratio=pca.explained_variance_ratio_, num_axis=num_axis, grasp_pose=success_u):
+                logger.record_tabular(key, mpi_average(val))
+        else:
+            for key, val in rollout_worker.logs('train', grasp_pose=success_u):
+                    logger.record_tabular(key, mpi_average(val))
         for key, val in policy.logs():
             logger.record_tabular(key, mpi_average(val))
 
