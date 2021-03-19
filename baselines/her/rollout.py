@@ -155,7 +155,6 @@ class RolloutWorker:
                     if 'is_success' in info:
                         success[i] = info['is_success']
 
-
                         # 継続の判定のため（ステップ数の後半10%になった時に判定を始める）
                         if success[i] > 0 and t > self.T*0.9:
                             dtime[i] += 1
@@ -165,9 +164,6 @@ class RolloutWorker:
                         # 一定時間（dtime），成功判定が継続した場合，把持姿勢を追加
                         if dtime[i] >= 5:
                             success_u.append(u[i][0:20])
-
-                        # if success[i] > 0 and t > self.T*0.9:
-                        #     success_u.append(u[i][0:20])
 
                         o_new[i] = curr_o_new['observation']
                     ag_new[i] = curr_o_new['achieved_goal']
@@ -243,7 +239,7 @@ class RolloutWorker:
         with open(path, 'wb') as f:
             pickle.dump(self.policy, f)
 
-    def logs(self, prefix='worker'):
+    def logs(self, prefix='worker', variance_ratio=[], num_axis=0, grasp_pose=[]):
         """Generates a dictionary that contains all collected statistics.
         """
         logs = []
@@ -251,6 +247,12 @@ class RolloutWorker:
         if self.compute_Q:
             logs += [('mean_Q', np.mean(self.Q_history))]
         logs += [('episode', self.n_episodes)]
+
+        # -- motoda add
+        if num_axis > 0 and variance_ratio.shape[0] > 0:
+            for i in range(num_axis):
+                logs += [('pc_{}'.format(i+1), variance_ratio[i]*100)]
+        logs += [('num_grasp', len(grasp_pose))] 
 
         if prefix is not '' and not prefix.endswith('/'):
             return [(prefix + '/' + key, val) for key, val in logs]

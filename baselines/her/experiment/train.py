@@ -91,8 +91,7 @@ def train(min_num, max_num, num_axis, reward_lambda, # nishimura
                 pca = PCA(num_axis)
                 pca.fit(success_u)
                 policy.setpca(pca) # pcaを渡す
-
-                print (pca.explained_variance_ratio_)
+                # print (pca.explained_variance_ratio_)
 
             # policy.store_pca_obj(pca)
             for _ in range(n_batches):
@@ -107,7 +106,7 @@ def train(min_num, max_num, num_axis, reward_lambda, # nishimura
         logger.record_tabular('epoch', epoch)
         for key, val in evaluator.logs('test'):
             logger.record_tabular(key, mpi_average(val))
-        for key, val in rollout_worker.logs('train'):
+        for key, val in rollout_worker.logs('train', variance_ratio=pca.explained_variance_ratio_, num_axis=num_axis, grasp_pose=success_u): # efit
             logger.record_tabular(key, mpi_average(val))
         for key, val in policy.logs():
             logger.record_tabular(key, mpi_average(val))

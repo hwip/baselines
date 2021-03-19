@@ -308,8 +308,8 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
         achieved_goal = self._get_achieved_goal().ravel()  # this contains the object position + rotation
         # The self.object_id is an important feature
         # but does only one value in the observation array have a positive effect on RL?
-        # observation = np.concatenate([robot_qpos, robot_qvel, object_qvel, achieved_goal, [self.target_id]])
-        observation = np.concatenate([robot_qpos, robot_qvel, object_qvel, achieved_goal]) # temp
+        observation = np.concatenate([robot_qpos, robot_qvel, object_qvel, achieved_goal, [self.target_id]])
+        # observation = np.concatenate([robot_qpos, robot_qvel, object_qvel, achieved_goal]) # temp
         return {
             'observation': observation.copy(),
             'achieved_goal': achieved_goal.copy(),
@@ -354,7 +354,7 @@ class GraspBlockEnv(ManipulateEnv):
             randomize_initial_position=False, reward_type=reward_type,
             distance_threshold=0.05,
             rotation_threshold=100.0,
-            randomize_object=False, target_id = 0, num_axis = 5
+            randomize_object=True, target_id = 0, num_axis = 5
         )
 '''
 Object_list:
