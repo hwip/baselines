@@ -15,6 +15,10 @@ from baselines.her.util import mpi_fork
 
 from subprocess import CalledProcessError
 
+# PCA
+import sklearn
+from sklearn.decomposition import PCA
+
 # --------------------------------------------------------------------------------------
 from baselines.custom_logger import CustomLoggerObject
 clogger = CustomLoggerObject()
@@ -63,6 +67,7 @@ def train(min_num, max_num, num_axis, reward_lambda, # nishimura
 
     # motoda --
     all_success_u = [] # Dumping  grasp_pose
+    policy.reward_lambda = reward_lambda 
     # --
 
     logger.info("Training...")
@@ -73,17 +78,26 @@ def train(min_num, max_num, num_axis, reward_lambda, # nishimura
         clogger.info("Start: Epoch {}/{}".format(epoch, n_epochs))
         # train
         rollout_worker.clear_history()
-        saved_success_u = []
         for _ in range(n_cycles):
+            policy.is_pca_fit = False
+
             episode, success_tmp = rollout_worker.generate_rollouts(min_num=min_num,num_axis=num_axis,reward_lambda=reward_lambda, success_u=success_u) # nishimura
             # clogger.info("Episode = {}".format(episode.keys()))
             # for key in episode.keys():
             #     clogger.info(" - {}: {}".format(key, episode[key].shape))
             policy.store_episode(episode)
+
+            if len(success_u) > min_num:
+                pca = PCA(num_axis)
+                pca.fit(success_u)
+                policy.setpca(pca) # pcaを渡す
+
+                print (pca.explained_variance_ratio_)
+
+            # policy.store_pca_obj(pca)
             for _ in range(n_batches):
                 policy.train()
             policy.update_target_net()
-            saved_success_u += success_tmp # motoda
 
         # test
         evaluator.clear_history()
@@ -115,8 +129,8 @@ def train(min_num, max_num, num_axis, reward_lambda, # nishimura
             evaluator.save_policy(policy_path)
             # -- motoda added
             grasp_path = path_to_grasp_dataset.format(epoch)
-            logger.info('Saving grasp pose: {} grasps. Saving policy to {} ...'.format(len(saved_success_u), grasp_path))
-            np.save(grasp_path, saved_success_u)
+            logger.info('Saving grasp pose: {} grasps. Saving policy to {} ...'.format(len(success_u), grasp_path))
+            np.save(grasp_path, success_u)
             # --
             
             # -- reset : grasp Pose -------
@@ -132,12 +146,10 @@ def train(min_num, max_num, num_axis, reward_lambda, # nishimura
         if rank != 0:
             assert local_uniform[0] != root_uniform[0]
 
-        all_success_u += saved_success_u # motoda
-
     # motoda --
     # Dumping the total success_pose
-    logger.info('Saving grasp pose: {} grasps. Saving policy to {} ...'.format(len(all_success_u), all_success_grasp_path))
-    np.save(all_success_grasp_path, saved_success_u)
+    logger.info('Saving grasp pose: {} grasps. Saving policy to {} ...'.format(len(success_u), all_success_grasp_path))
+    np.save(all_success_grasp_path, success_u)
     # --
 
 def launch(
@@ -275,7 +287,7 @@ def launch(
 @click.option('--clip_return', type=int, default=1, help='whether or not returns should be clipped')
 @click.option('--demo_file', type=str, default = 'PATH/TO/DEMO/DATA/FILE.npz', help='demo data file path')
 @click.option('--logdir_tf', type=str, default=None, help='the path to save tf.variables.')
-@click.option('--logdir_init', type=str, default='model/init', help='the path to load default paramater.') # There are meta data at model/init
+@click.option('--logdir_init', type=str, default=None, help='the path to load default paramater.') # There are meta data at model/init
 @click.option('--is_init_grasp', type=bool, default=True, help='Switch Initial Grasp Pose') 
 def main(**kwargs):
     clogger.info("Main Func @her.experiment.train")

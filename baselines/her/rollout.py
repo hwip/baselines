@@ -99,9 +99,6 @@ class RolloutWorker:
         policy acting on it accordingly.
         """
 
-        import sklearn
-        from sklearn.decomposition import PCA
-
         self.reset_all_rollouts()
 
         # compute observations
@@ -112,15 +109,6 @@ class RolloutWorker:
 
         # evaluate grasp
         dtime = np.zeros(self.rollout_batch_size)
-        tmp_success_u = []
-
-        # PCA for initial grasp pose
-        tmp_variance_ratio = []
-        is_variance_ratio = False
-        if len(success_u) >= min_num:
-            pca = PCA()
-            pca.fit(success_u)
-            tmp_variance_ratio = pca.explained_variance_ratio_
 
         # generate episodes
         obs, achieved_goals, acts, goals, successes = [], [], [], [], []
@@ -167,48 +155,19 @@ class RolloutWorker:
                     if 'is_success' in info:
                         success[i] = info['is_success']
 
-                        # _/_/ _/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
 
-                        # 継続の判定のため（ステップ数の後半10%になった時の判定を始める）
-                        if success[i] > 0 & t > self.T*0.9:
-                            #tmp_success_u.append(u[i][0:20])
+                        # 継続の判定のため（ステップ数の後半10%になった時に判定を始める）
+                        if success[i] > 0 and t > self.T*0.9:
                             dtime[i] += 1
                         else:
                             dtime[i] = 0
 
                         # 一定時間（dtime），成功判定が継続した場合，把持姿勢を追加
                         if dtime[i] >= 5:
-                            #success_u += tmp_success_u
                             success_u.append(u[i][0:20])
-                            is_variance_ratio = True
 
-                        # 把持姿勢が追加されていれば，新たにPCAを計算し，報酬に回す
-                        if len(success_u)>=min_num & is_variance_ratio !=False: # nishimura
-                            # start = time.time() # Time Check
-                            
-                            # --- skitlearn ver.
-                            pca = PCA()
-                            pca.fit(success_u)
-                            tmp_variance_ratio = pca.explained_variance_ratio
-                            self.envs[i].variance_ratio.append(tmp_variance_ratio)
-
-                            print ("1:{} 2:{} 3:{}".format(tmp_variance_ratio[0], tmp_variance_ratio[1], tmp_variance_ratio[2]))
-
-                            # --- Tensorflow ver. 
-                            # contribution_rate = tf_pca (success_u)
-                            # tmp_variance_ratio = contribution_rate
-                            # self.envs[i].variance_ratio.append(contribution_rate)
-                            
-                            # ---- Numpy ver. 
-                            # contribution_rate = numpy_pca (success_u) 
-                            # tmp_variance_ratio = contribution_rate
-                            # self.envs[i].variance_ratio.append(contribution_rate)
-                            
-                            is_variance_ratio = False
-                        else:
-                            self.envs[i].variance_ratio.append(tmp_variance_ratio)
-
-                        # _/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+                        # if success[i] > 0 and t > self.T*0.9:
+                        #     success_u.append(u[i][0:20])
 
                         o_new[i] = curr_o_new['observation']
                     ag_new[i] = curr_o_new['achieved_goal']
@@ -261,6 +220,8 @@ class RolloutWorker:
         if self.compute_Q:
             self.Q_history.append(np.mean(Qs))
         self.n_episodes += self.rollout_batch_size
+
+
 
         return convert_episode_to_batch_major(episode), success_u # motoda
 

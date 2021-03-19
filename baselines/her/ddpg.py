@@ -11,6 +11,9 @@ from baselines.her.normalizer import Normalizer
 from baselines.her.replay_buffer import ReplayBuffer
 from baselines.common.mpi_adam import MpiAdam
 
+import sklearn
+from sklearn.decomposition import PCA
+global PCA_BUFFER # motoda
 
 def dims_to_shapes(input_dims):
     return {key: tuple([val]) if val > 0 else tuple() for key, val in input_dims.items()}
@@ -64,13 +67,15 @@ class DDPG(object):
         if self.clip_return is None:
             self.clip_return = np.inf
 
+        self.is_pca_fit = False
+        self.reward_lambda = 1.
+
         self.create_actor_critic = import_function(self.network_class)
 
         input_shapes = dims_to_shapes(self.input_dims)
         self.dimo = self.input_dims['o']
         self.dimg = self.input_dims['g']
         self.dimu = self.input_dims['u']
-
         # Prepare staging area for feeding data to the model.
         stage_shapes = OrderedDict()
         for key in sorted(self.input_dims.keys()):
@@ -262,6 +267,17 @@ class DDPG(object):
         else:
             transitions = self.buffer.sample(self.batch_size) #otherwise only sample from primary buffer
 
+
+        # --- motoda ---
+        global PCA_BUFFER
+        pos = transitions['u'][:, 0:20]
+        if self.is_pca_fit == True:
+            error = np.linalg.norm(pos - PCA_BUFFER.inverse_transform(PCA_BUFFER.transform(pos)), axis=1)
+        else:
+            error = 0.
+        transitions['r'] = transitions['r'] + self.reward_lambda * (transitions['r'] + 1.) * error
+        # --------------
+
         o, o_2, g = transitions['o'], transitions['o_2'], transitions['g']
         ag, ag_2 = transitions['ag'], transitions['ag_2']
         transitions['o'], transitions['g'] = self._preprocess_og(o, ag, g)
@@ -436,3 +452,8 @@ class DDPG(object):
         assert(len(vars) == len(state["tf"]))
         node = [tf.assign(var, val) for var, val in zip(vars, state["tf"])]
         self.sess.run(node)
+
+    def setpca(self, pca):
+        global PCA_BUFFER
+        PCA_BUFFER = pca
+        self.is_pca_fit = True

@@ -77,8 +77,6 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
         self.reward_type = reward_type
         self.ignore_z_target_rotation = ignore_z_target_rotation
         
-        self.variance_ratio = []
-
         self.object_list = ["box:joint", "apple:joint", "banana:joint", "beerbottle:joint", "book:joint",
                             "needle:joint", "pen:joint", "teacup:joint"]
         self.target_id = target_id
@@ -146,31 +144,23 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
         return d_pos, d_rot
 
     # GoalEnv methods
-    # ----------------------------
+    # ----------------------------  
 
     def compute_reward(self, achieved_goal, goal, info):
         if self.reward_type == 'sparse':
             success = self._is_success(achieved_goal, goal).astype(np.float32)
             return (success - 1.)
         else:
-            d_pos, d_rot = self._goal_distance(achieved_goal, goal)
+            # d_pos, d_rot = self._goal_distance(achieved_goal, goal)
             # We weigh the difference in position to avoid that `d_pos` (in meters) is completely
             # dominated by `d_rot` (in radians).
 
-            # -- nishimura
-            #reward = -(10. * d_pos) # d_pos : distance_error
-            reward = self._is_success(achieved_goal, goal)-1. # default
-            # --
+            # Train時のみ処理されるように
+            if not 'u' in info:
+                return
 
-            # -- reward Contributed rate
-            if len(self.variance_ratio) > 0:
-                vr = self.variance_ratio[-1]
-                l = np.sum(vr[:(self.num_axis)])
-                self.variance_ratio = []
-                
-                reward -= self.reward_lambda*(1.-l) # nishimura
-            # --
-             
+            success = self._is_success(achieved_goal, goal).astype(np.float32) # 成否（1,0）を取得する
+            reward = (success-1.)
             return reward
 
     # RobotEnv methods
@@ -318,7 +308,8 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
         achieved_goal = self._get_achieved_goal().ravel()  # this contains the object position + rotation
         # The self.object_id is an important feature
         # but does only one value in the observation array have a positive effect on RL?
-        observation = np.concatenate([robot_qpos, robot_qvel, object_qvel, achieved_goal, [self.target_id]])
+        # observation = np.concatenate([robot_qpos, robot_qvel, object_qvel, achieved_goal, [self.target_id]])
+        observation = np.concatenate([robot_qpos, robot_qvel, object_qvel, achieved_goal]) # temp
         return {
             'observation': observation.copy(),
             'achieved_goal': achieved_goal.copy(),
@@ -363,7 +354,7 @@ class GraspBlockEnv(ManipulateEnv):
             randomize_initial_position=False, reward_type=reward_type,
             distance_threshold=0.05,
             rotation_threshold=100.0,
-            randomize_object=False ,target_id = 0, num_axis = 5
+            randomize_object=False, target_id = 0, num_axis = 5
         )
 '''
 Object_list:
