@@ -275,7 +275,7 @@ class DDPG(object):
             error = np.linalg.norm(pos - PCA_BUFFER.inverse_transform(PCA_BUFFER.transform(pos)), axis=1)
         else:
             error = 0.
-        transitions['r'] = transitions['r'] + self.reward_lambda * (transitions['r'] + 1.) * error
+        transitions['r'] = transitions['r'] - self.reward_lambda * (transitions['r'] + 1.) * error
         # --------------
 
         o, o_2, g = transitions['o'], transitions['o_2'], transitions['g']
