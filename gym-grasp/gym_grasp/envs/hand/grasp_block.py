@@ -99,9 +99,11 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
             relative_control=relative_control)
         utils.EzPickle.__init__(self)
 
-    def set_initial_param(self, _reward_lambda, _num_axis):
+    def set_initial_param(self, _reward_lambda, _num_axis, _target_id, _randomize_object):
         self.reward_lambda = _reward_lambda # a weight for the second term of the reward function (float)
         self.num_axis = _num_axis # the number of components
+        self.target_id = _target_id
+        self.randomize_object = _randomize_object
 
     def _get_achieved_goal(self):
         # Object position and rotation.
@@ -160,7 +162,9 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
                 return
 
             success = self._is_success(achieved_goal, goal).astype(np.float32) # 成否（1,0）を取得する
-            reward = (success-1.)
+            
+            reward = (success-1.) - (success*info['e'])
+
             return reward
 
     # RobotEnv methods
@@ -354,7 +358,7 @@ class GraspBlockEnv(ManipulateEnv):
             randomize_initial_position=False, reward_type=reward_type,
             distance_threshold=0.05,
             rotation_threshold=100.0,
-            randomize_object=True, target_id = 0, num_axis = 5
+            randomize_object=False, target_id = 0, num_axis = 5
         )
 '''
 Object_list:

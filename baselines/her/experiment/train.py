@@ -35,7 +35,7 @@ def mpi_average(value):
 
 
 def train(min_num, max_num, num_axis, reward_lambda, # nishimura
-          is_init_grasp, 
+          is_init_grasp, target_id, randomize_object,
           policy, rollout_worker, evaluator,
           n_epochs, n_test_rollouts, n_cycles, n_batches, policy_save_interval,
           save_policies, demo_file, logdir_init, **kwargs):
@@ -82,19 +82,18 @@ def train(min_num, max_num, num_axis, reward_lambda, # nishimura
         for _ in range(n_cycles):
             policy.is_pca_fit = False
 
-            episode, success_tmp = rollout_worker.generate_rollouts(min_num=min_num,num_axis=num_axis,reward_lambda=reward_lambda, success_u=success_u) # nishimura
-            # clogger.info("Episode = {}".format(episode.keys()))
+            episode, success_tmp = rollout_worker.generate_rollouts(min_num=min_num,num_axis=num_axis,reward_lambda=reward_lambda, target_id=target_id, randomize_object=randomize_object, success_u=success_u) # nishimura
+
+            if os.path.exists('success_u.npy'):
+                os.remove('success_u.npy')
+            np.save('success_u.npy', success_u)
+
+            #clogger.info("Episode = {}".format(episode.keys()))
             # for key in episode.keys():
-            #     clogger.info(" - {}: {}".format(key, episode[key].shape))
+            #      clogger.info(" - {}: {}".format(key, episode[key].shape))
+
             policy.store_episode(episode)
 
-            if len(success_u) > min_num:
-                pca = PCA(num_axis)
-                pca.fit(success_u)
-                policy.setpca(pca) # pcaを渡す
-                # print (pca.explained_variance_ratio_)
-
-            # policy.store_pca_obj(pca)
             for _ in range(n_batches):
                 policy.train()
             policy.update_target_net()
@@ -102,7 +101,7 @@ def train(min_num, max_num, num_axis, reward_lambda, # nishimura
         # test
         evaluator.clear_history()
         for _ in range(n_test_rollouts):
-            evaluator.generate_rollouts(min_num=min_num,num_axis=num_axis,reward_lambda=reward_lambda) # nishimura
+            evaluator.generate_rollouts(min_num=min_num,num_axis=num_axis,reward_lambda=reward_lambda, target_id=target_id, randomize_object=randomize_object) # nishimura
         # record logs
         logger.record_tabular('epoch', epoch)
         for key, val in evaluator.logs('test'):
@@ -157,7 +156,7 @@ def train(min_num, max_num, num_axis, reward_lambda, # nishimura
     # --
 
 def launch(
-    env, logdir, n_epochs, min_num, max_num, num_axis, reward_lambda, is_init_grasp, num_cpu, seed, replay_strategy, policy_save_interval, clip_return,
+    env, logdir, n_epochs, min_num, max_num, num_axis, reward_lambda, is_init_grasp, target_id, randomize_object, num_cpu, seed, replay_strategy, policy_save_interval, clip_return,
         demo_file, logdir_tf=None, override_params={}, save_policies=True, logdir_init=None
 ):
     # Fork for multi-CPU MPI implementation.
@@ -261,7 +260,7 @@ def launch(
 
     train(
         min_num=min_num, max_num=max_num, num_axis=num_axis, reward_lambda=reward_lambda, # nishimura
-        is_init_grasp=is_init_grasp,
+        is_init_grasp=is_init_grasp, target_id=target_id, randomize_object=randomize_object,
         logdir=logdir, policy=policy, rollout_worker=rollout_worker,
         evaluator=evaluator, n_epochs=n_epochs, n_test_rollouts=params['n_test_rollouts'],
         n_cycles=params['n_cycles'], n_batches=params['n_batches'],
@@ -292,7 +291,10 @@ def launch(
 @click.option('--demo_file', type=str, default = 'PATH/TO/DEMO/DATA/FILE.npz', help='demo data file path')
 @click.option('--logdir_tf', type=str, default=None, help='the path to save tf.variables.')
 @click.option('--logdir_init', type=str, default=None, help='the path to load default paramater.') # There are meta data at model/init
-@click.option('--is_init_grasp', type=bool, default=True, help='Switch Initial Grasp Pose') 
+@click.option('--is_init_grasp', type=bool, default=False, help='Switch Initial Grasp Pose') 
+@click.option('--target_id', type=int, default=0, help='Target id (if randomize_object==False) -->> ["box:joint", "apple:joint", "banana:joint", "beerbottle:joint", "book:joint", "needle:joint", "pen:joint", "teacup:joint"]') 
+@click.option('--randomize_object', type=bool, default=True, help='randomize_object or not (True/False) default=True') 
+
 def main(**kwargs):
     clogger.info("Main Func @her.experiment.train")
     launch(**kwargs)
