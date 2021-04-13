@@ -19,6 +19,8 @@ from subprocess import CalledProcessError
 import sklearn
 from sklearn.decomposition import PCA
 
+import baselines.her.experiment.success_u as su
+
 # --------------------------------------------------------------------------------------
 from baselines.custom_logger import CustomLoggerObject
 clogger = CustomLoggerObject()
@@ -69,6 +71,8 @@ def train(min_num, max_num, num_axis, reward_lambda, # nishimura
     all_success_u = [] # Dumping  grasp_pose
     policy.reward_lambda = reward_lambda 
     pca = PCA(num_axis)
+
+    su.set_lambda(lambda_c=reward_lambda)
     # --
 
     logger.info("Training...")
@@ -82,11 +86,13 @@ def train(min_num, max_num, num_axis, reward_lambda, # nishimura
         for _ in range(n_cycles):
             policy.is_pca_fit = False
 
-            episode, success_tmp = rollout_worker.generate_rollouts(min_num=min_num,num_axis=num_axis,reward_lambda=reward_lambda, target_id=target_id, randomize_object=randomize_object, success_u=success_u) # nishimura
+            episode, success_tmp = rollout_worker.generate_rollouts(min_num=min_num,num_axis=num_axis,reward_lambda=reward_lambda, success_u=success_u) # nishimura
 
-            if os.path.exists('success_u.npy'):
-                os.remove('success_u.npy')
-            np.save('success_u.npy', success_u)
+            #if os.path.exists('success_u_110.npy'):
+            #    os.remove('success_u_110.npy')
+            #np.save('success_u_110.npy', success_u)
+
+            su.set_success_u(success_u)
 
             #clogger.info("Episode = {}".format(episode.keys()))
             # for key in episode.keys():
@@ -101,16 +107,17 @@ def train(min_num, max_num, num_axis, reward_lambda, # nishimura
         # test
         evaluator.clear_history()
         for _ in range(n_test_rollouts):
-            evaluator.generate_rollouts(min_num=min_num,num_axis=num_axis,reward_lambda=reward_lambda, target_id=target_id, randomize_object=randomize_object) # nishimura
+            evaluator.generate_rollouts(min_num=min_num,num_axis=num_axis,reward_lambda=reward_lambda) # nishimura
         # record logs
         logger.record_tabular('epoch', epoch)
         for key, val in evaluator.logs('test'):
             logger.record_tabular(key, mpi_average(val))
         if len(success_u) > min_num:
+            pca.fit(success_u)  #PCAの計算をして現時点の結果を表示する
             for key, val in rollout_worker.logs('train', variance_ratio=pca.explained_variance_ratio_, num_axis=num_axis, grasp_pose=success_u):
                 logger.record_tabular(key, mpi_average(val))
         else:
-            for key, val in rollout_worker.logs('train', grasp_pose=success_u):
+            for key, val in rollout_worker.logs('train', num_axis=num_axis, grasp_pose=success_u):
                     logger.record_tabular(key, mpi_average(val))
         for key, val in policy.logs():
             logger.record_tabular(key, mpi_average(val))

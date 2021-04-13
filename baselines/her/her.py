@@ -1,6 +1,10 @@
 import numpy as np
 import os
 
+import sklearn
+from sklearn.decomposition import PCA
+import baselines.her.experiment.success_u as su
+
 def make_sample_her_transitions(replay_strategy, replay_k, reward_fun):
     """Creates a sample function that can be used for HER experience replay.
 
@@ -52,15 +56,15 @@ def make_sample_her_transitions(replay_strategy, replay_k, reward_fun):
         info['u'] = transitions['u'] # motoda
 
         ### 報酬関数に含まれる誤差の計算
-        import sklearn
-        from sklearn.decomposition import PCA
-        if os.path.exists('success_u.npy'):
-            success_u = np.load('success_u.npy')
-        else:
-            success_u = []
+        #if os.path.exists('success_u_110.npy'):
+        #    success_u = np.load('success_u_110.npy')
+        #else:
+        #    success_u = []
+
+        success_u = su.get_success_u()
 
         if len(success_u) > 10:
-            pca = PCA(3)
+            pca = PCA(3) # 主成分の次元数
             pca.fit(success_u)
             pos = transitions['u'][:, 0:20]
             info['e'] = np.linalg.norm(pos - pca.inverse_transform(pca.transform(pos)), axis=1)
