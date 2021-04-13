@@ -93,6 +93,7 @@ def train(min_num, max_num, num_axis, reward_lambda, # nishimura
             #np.save('success_u_110.npy', success_u)
 
             su.set_success_u(success_u)
+            su.calc_pca() # PCAの計算
 
             #clogger.info("Episode = {}".format(episode.keys()))
             # for key in episode.keys():
