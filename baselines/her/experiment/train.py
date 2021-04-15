@@ -93,7 +93,8 @@ def train(min_num, max_num, num_axis, reward_lambda, # nishimura
             #np.save('success_u_110.npy', success_u)
 
             su.set_success_u(success_u)
-            su.calc_pca() # PCAの計算
+            if len(success_u) > min_num:
+                su.calc_pca() # PCAの計算
 
             #clogger.info("Episode = {}".format(episode.keys()))
             # for key in episode.keys():
@@ -114,8 +115,11 @@ def train(min_num, max_num, num_axis, reward_lambda, # nishimura
         for key, val in evaluator.logs('test'):
             logger.record_tabular(key, mpi_average(val))
         if len(success_u) > min_num:
-            pca.fit(success_u)  #PCAの計算をして現時点の結果を表示する
-            for key, val in rollout_worker.logs('train', variance_ratio=pca.explained_variance_ratio_, num_axis=num_axis, grasp_pose=success_u):
+            # pca.fit(success_u)  #PCAの計算をして現時点の結果を表示する
+            su.set_success_u(success_u) # 把持姿勢をセット
+            su.calc_pca() # PCAの計算
+            variance_ratio = su.get_variance_ratio()
+            for key, val in rollout_worker.logs('train', variance_ratio=variance_ratio, num_axis=num_axis, grasp_pose=success_u):
                 logger.record_tabular(key, mpi_average(val))
         else:
             for key, val in rollout_worker.logs('train', num_axis=num_axis, grasp_pose=success_u):

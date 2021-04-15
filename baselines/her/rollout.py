@@ -155,19 +155,19 @@ class RolloutWorker:
                     if 'is_success' in info:
                         success[i] = info['is_success']
 
-                        # 継続の判定のため
-                        if success[i] > 0 and t > self.T*0.90: # ステップ数の後半10%になった時に判定を始める
-                            dtime[i] += 1
-                        else:
-                            dtime[i] = 0
+                        ## 継続の判定のため
+                        # if success[i] > 0 and t > self.T*0.90: # ステップ数の後半10%になった時に判定を始める
+                        #     dtime[i] += 1
+                        # else:
+                        #     dtime[i] = 0
 
-                        # 一定時間（dtime），成功判定が継続した場合，把持姿勢を追加
-                        if dtime[i] >= 5:
-                            success_u.append(u[i][0:20])
-
-                        # 学習の最後5stepで成功した場合のみver
-                        # if success[i] > 0 and t > self.T*0.95:
+                        # # 一定時間（dtime），成功判定が継続した場合，把持姿勢を追加
+                        # if dtime[i] >= 5:
                         #     success_u.append(u[i][0:20])
+
+                        ## 学習の最後5stepで成功した場合のみver
+                        if success[i] > 0 and t > self.T*0.95:
+                            success_u.append(u[i][0:20])
 
                         o_new[i] = curr_o_new['observation']
                     ag_new[i] = curr_o_new['achieved_goal']

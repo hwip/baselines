@@ -34,3 +34,7 @@ def calc_inverse(pos):
     global _pca
     inverse_pos = _pca.inverse_transform(pos)
     return inverse_pos
+
+def get_variance_ratio():
+    global _pca
+    return _pca.explained_variance_ratio_
