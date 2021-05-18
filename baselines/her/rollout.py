@@ -156,16 +156,16 @@ class RolloutWorker:
                         success[i] = info['is_success']
 
                         ## 継続の判定のため
-                        # if success[i] > 0 and t > self.T*0.90: # ステップ数の後半10%になった時に判定を始める
-                        #     dtime[i] += 1
-                        # else:
-                        #     dtime[i] = 0
+                        #if success[i] > 0 and t > self.T*0.90: # ステップ数の後半10%になった時に判定を始める
+                        #    dtime[i] += 1
+                        #else:
+                        #    dtime[i] = 0
 
-                        # # 一定時間（dtime），成功判定が継続した場合，把持姿勢を追加
-                        # if dtime[i] >= 5:
-                        #     success_u.append(u[i][0:20])
+                        # 一定時間（dtime），成功判定が継続した場合，把持姿勢を追加
+                        #if dtime[i] >= 5:
+                        #    success_u.append(u[i][0:20])
 
-                        ## 学習の最後5stepで成功した場合のみver
+                        # 学習の最後5stepで成功した場合のみver
                         if success[i] > 0 and t > self.T*0.95:
                             success_u.append(u[i][0:20])
 
@@ -173,6 +173,8 @@ class RolloutWorker:
                     ag_new[i] = curr_o_new['achieved_goal']
                     for idx, key in enumerate(self.info_keys):
                         info_values[idx][t, i] = info[key]
+                    if self.render:
+                        self.envs[i].render()
                 except MujocoException as e:
                     return self.generate_rollouts()
 
@@ -220,8 +222,6 @@ class RolloutWorker:
         if self.compute_Q:
             self.Q_history.append(np.mean(Qs))
         self.n_episodes += self.rollout_batch_size
-
-
 
         return convert_episode_to_batch_major(episode), success_u # motoda
 

@@ -16,7 +16,27 @@ args = parser.parse_args()
 model = load_model_from_path(args.dir + "/gym-grasp/gym_grasp/envs/assets/hand/hand.xml")
 sim = MjSim(model)
 
-dataset_path = args.dir + "/policy/{}/{}".format("210215", "grasp_dataset_30.npy")
+# motoda ---------------------------------------
+
+#file_npy = "total_grasp_dataset.npy"
+file_npy = "grasp_dataset_30.npy"
+folder_name = "Last5_Off_Init_grasp/070/3"
+
+## Axis 3
+#folder_name = "axis_3/Last5_Off_Init_grasp"
+#folder_name = "axis_3/Last5_On_Init_grasp"
+#folder_name = "axis_3/Sequence5_Off_Init_grasp"
+#folder_name = "axis_3/Sequence5_On_Init_grasp"
+
+## Axis 5
+#folder_name = "axis_5/Last5_Off_Init_grasp"
+#folder_name = "axis_5/Last5_Off_On_grasp"
+#folder_name = "axis_5/Sequence5_Off_Init_grasp"
+#folder_name = "axis_5/Sequence5_On_Init_grasp"
+
+# ----------------------------------------------
+dataset_path = args.dir + "/policy/{}/{}".format(folder_name, file_npy)
+# dataset_path = args.dir + "/policy/{}/{}".format("210215", "grasp_dataset_30.npy")
 
 viewer = MjViewer(sim)
 

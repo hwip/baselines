@@ -72,7 +72,10 @@ def train(min_num, max_num, num_axis, reward_lambda, # nishimura
     policy.reward_lambda = reward_lambda 
     pca = PCA(num_axis)
 
+    # 実装上の無理くり
     su.set_lambda(lambda_c=reward_lambda)
+    su.set_PCA_axis(axis_c=num_axis)
+    su.set_PCA_instance() # インスタンスを設定する
     # --
 
     logger.info("Training...")
@@ -115,7 +118,6 @@ def train(min_num, max_num, num_axis, reward_lambda, # nishimura
         for key, val in evaluator.logs('test'):
             logger.record_tabular(key, mpi_average(val))
         if len(success_u) > min_num:
-            # pca.fit(success_u)  #PCAの計算をして現時点の結果を表示する
             su.set_success_u(success_u) # 把持姿勢をセット
             su.calc_pca() # PCAの計算
             variance_ratio = su.get_variance_ratio()

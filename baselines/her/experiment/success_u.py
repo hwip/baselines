@@ -3,7 +3,16 @@ from sklearn.decomposition import PCA
 
 _success_u = []
 _lambda = 0.0
-_pca = PCA(3)
+_axis = 3 
+_pca = PCA(_axis)
+
+def set_PCA_instance():
+    global _pca, _axis
+    _pca = PCA(_axis)
+
+def set_PCA_axis(axis_c=3):
+    global _axis
+    _axis = axis_c
 
 def set_lambda(lambda_c=0.0):
     global _lambda
