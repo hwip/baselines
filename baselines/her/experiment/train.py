@@ -15,6 +15,12 @@ from baselines.her.util import mpi_fork
 
 from subprocess import CalledProcessError
 
+# PCA
+import sklearn
+from sklearn.decomposition import PCA
+
+import baselines.her.experiment.success_u as su
+
 # --------------------------------------------------------------------------------------
 from baselines.custom_logger import CustomLoggerObject
 clogger = CustomLoggerObject()
@@ -31,6 +37,7 @@ def mpi_average(value):
 
 
 def train(min_num, max_num, num_axis, reward_lambda, # nishimura
+          is_init_grasp, target_id, randomize_object,
           policy, rollout_worker, evaluator,
           n_epochs, n_test_rollouts, n_cycles, n_batches, policy_save_interval,
           save_policies, demo_file, logdir_init, **kwargs):
@@ -46,20 +53,29 @@ def train(min_num, max_num, num_axis, reward_lambda, # nishimura
 
     # motoda -- 
     success_u = []
-    init_success_u = []
-    path_to_default_grasp_dataset = "model/initial_grasp_pose.npy"
-    if os.path.exists(path_to_default_grasp_dataset):
-        init_success_u = np.load(path_to_default_grasp_dataset) # Load Initial Grasp Pose set
-        init_success_u = (init_success_u.tolist()) 
-        for tmp_suc in init_success_u:
-            success_u.append(tmp_suc[0:20])
-        print ("Num of grasp : {} ".format(len (success_u)))
-    else:
-        print ("No initial grasp pose")
+
+    if is_init_grasp != False: # On/Off
+        init_success_u = []
+        path_to_default_grasp_dataset = "model/initial_grasp_pose.npy"
+        if os.path.exists(path_to_default_grasp_dataset):
+            init_success_u = np.load(path_to_default_grasp_dataset) # Load Initial Grasp Pose set
+            init_success_u = (init_success_u.tolist()) 
+            for tmp_suc in init_success_u:
+                success_u.append(tmp_suc[0:20])
+            print ("Num of grasp : {} ".format(len (success_u)))
+        else:
+            print ("No initial grasp pose")
     # ---
 
     # motoda --
     all_success_u = [] # Dumping  grasp_pose
+    policy.reward_lambda = reward_lambda 
+    pca = PCA(num_axis)
+
+    # 実装上の無理くり
+    su.set_lambda(lambda_c=reward_lambda)
+    su.set_PCA_axis(axis_c=num_axis)
+    su.set_PCA_instance() # インスタンスを設定する
     # --
 
     logger.info("Training...")
@@ -70,17 +86,28 @@ def train(min_num, max_num, num_axis, reward_lambda, # nishimura
         clogger.info("Start: Epoch {}/{}".format(epoch, n_epochs))
         # train
         rollout_worker.clear_history()
-        saved_success_u = []
         for _ in range(n_cycles):
-            episode, success_tmp = rollout_worker.generate_rollouts(min_num=min_num,num_axis=num_axis,reward_lambda=reward_lambda,success_u=success_u) # nishimura
-            # clogger.info("Episode = {}".format(episode.keys()))
+            policy.is_pca_fit = False
+
+            episode, success_tmp = rollout_worker.generate_rollouts(min_num=min_num,num_axis=num_axis,reward_lambda=reward_lambda, success_u=success_u) # nishimura
+
+            #if os.path.exists('success_u_110.npy'):
+            #    os.remove('success_u_110.npy')
+            #np.save('success_u_110.npy', success_u)
+
+            su.set_success_u(success_u)
+            if len(success_u) > min_num:
+                su.calc_pca() # PCAの計算
+
+            #clogger.info("Episode = {}".format(episode.keys()))
             # for key in episode.keys():
-            #     clogger.info(" - {}: {}".format(key, episode[key].shape))
+            #      clogger.info(" - {}: {}".format(key, episode[key].shape))
+
             policy.store_episode(episode)
+
             for _ in range(n_batches):
                 policy.train()
             policy.update_target_net()
-            saved_success_u += success_tmp # motoda
 
         # test
         evaluator.clear_history()
@@ -90,8 +117,15 @@ def train(min_num, max_num, num_axis, reward_lambda, # nishimura
         logger.record_tabular('epoch', epoch)
         for key, val in evaluator.logs('test'):
             logger.record_tabular(key, mpi_average(val))
-        for key, val in rollout_worker.logs('train'):
-            logger.record_tabular(key, mpi_average(val))
+        if len(success_u) > min_num:
+            su.set_success_u(success_u) # 把持姿勢をセット
+            su.calc_pca() # PCAの計算
+            variance_ratio = su.get_variance_ratio()
+            for key, val in rollout_worker.logs('train', variance_ratio=variance_ratio, num_axis=num_axis, grasp_pose=success_u):
+                logger.record_tabular(key, mpi_average(val))
+        else:
+            for key, val in rollout_worker.logs('train', num_axis=num_axis, grasp_pose=success_u):
+                    logger.record_tabular(key, mpi_average(val))
         for key, val in policy.logs():
             logger.record_tabular(key, mpi_average(val))
 
@@ -112,8 +146,8 @@ def train(min_num, max_num, num_axis, reward_lambda, # nishimura
             evaluator.save_policy(policy_path)
             # -- motoda added
             grasp_path = path_to_grasp_dataset.format(epoch)
-            logger.info('Saving grasp pose: {} grasps. Saving policy to {} ...'.format(len(saved_success_u), grasp_path))
-            np.save(grasp_path, saved_success_u)
+            logger.info('Saving grasp pose: {} grasps. Saving policy to {} ...'.format(len(success_u), grasp_path))
+            np.save(grasp_path, success_u)
             # --
             
             # -- reset : grasp Pose -------
@@ -129,16 +163,14 @@ def train(min_num, max_num, num_axis, reward_lambda, # nishimura
         if rank != 0:
             assert local_uniform[0] != root_uniform[0]
 
-        all_success_u += saved_success_u # motoda
-
     # motoda --
     # Dumping the total success_pose
-    logger.info('Saving grasp pose: {} grasps. Saving policy to {} ...'.format(len(all_success_u), all_success_grasp_path))
-    np.save(all_success_grasp_path, saved_success_u)
+    logger.info('Saving grasp pose: {} grasps. Saving policy to {} ...'.format(len(success_u), all_success_grasp_path))
+    np.save(all_success_grasp_path, success_u)
     # --
 
 def launch(
-    env, logdir, n_epochs, min_num, max_num, num_axis, reward_lambda, num_cpu, seed, replay_strategy, policy_save_interval, clip_return,
+    env, logdir, n_epochs, min_num, max_num, num_axis, reward_lambda, is_init_grasp, target_id, randomize_object, num_cpu, seed, replay_strategy, policy_save_interval, clip_return,
         demo_file, logdir_tf=None, override_params={}, save_policies=True, logdir_init=None
 ):
     # Fork for multi-CPU MPI implementation.
@@ -242,6 +274,7 @@ def launch(
 
     train(
         min_num=min_num, max_num=max_num, num_axis=num_axis, reward_lambda=reward_lambda, # nishimura
+        is_init_grasp=is_init_grasp, target_id=target_id, randomize_object=randomize_object,
         logdir=logdir, policy=policy, rollout_worker=rollout_worker,
         evaluator=evaluator, n_epochs=n_epochs, n_test_rollouts=params['n_test_rollouts'],
         n_cycles=params['n_cycles'], n_batches=params['n_batches'],
@@ -271,7 +304,11 @@ def launch(
 @click.option('--clip_return', type=int, default=1, help='whether or not returns should be clipped')
 @click.option('--demo_file', type=str, default = 'PATH/TO/DEMO/DATA/FILE.npz', help='demo data file path')
 @click.option('--logdir_tf', type=str, default=None, help='the path to save tf.variables.')
-@click.option('--logdir_init', type=str, default='model/init', help='the path to load default paramater.') # There are meta data at model/init
+@click.option('--logdir_init', type=str, default=None, help='the path to load default paramater.') # There are meta data at model/init
+@click.option('--is_init_grasp', type=bool, default=False, help='Switch Initial Grasp Pose') 
+@click.option('--target_id', type=int, default=0, help='Target id (if randomize_object==False) -->> ["box:joint", "apple:joint", "banana:joint", "beerbottle:joint", "book:joint", "needle:joint", "pen:joint", "teacup:joint"]') 
+@click.option('--randomize_object', type=bool, default=True, help='randomize_object or not (True/False) default=True') 
+
 def main(**kwargs):
     clogger.info("Main Func @her.experiment.train")
     launch(**kwargs)

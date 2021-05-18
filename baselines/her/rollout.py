@@ -99,9 +99,6 @@ class RolloutWorker:
         policy acting on it accordingly.
         """
 
-        import sklearn
-        from sklearn.decomposition import PCA
-
         self.reset_all_rollouts()
 
         # compute observations
@@ -109,6 +106,9 @@ class RolloutWorker:
         ag = np.empty((self.rollout_batch_size, self.dims['g']), np.float32)  # achieved goals
         o[:] = self.initial_o
         ag[:] = self.initial_ag
+
+        # evaluate grasp
+        dtime = np.zeros(self.rollout_batch_size)
 
         # generate episodes
         obs, achieved_goals, acts, goals, successes = [], [], [], [], []
@@ -145,8 +145,8 @@ class RolloutWorker:
 
             # compute new states and observations
             for i in range(self.rollout_batch_size):
-                # -- nishimura 雑実装
-                self.envs[i].set_initial_param(_reward_lambda=reward_lambda, _num_axis=num_axis)
+                # -- nishimura
+                # self.envs[i].set_initial_param(_reward_lambda=reward_lambda, _num_axis=num_axis)
                 # --
                 try:
                     # We fully ignore the reward here because it will have to be re-computed
@@ -154,25 +154,27 @@ class RolloutWorker:
                     curr_o_new, _, _, info = self.envs[i].step(u[i])
                     if 'is_success' in info:
                         success[i] = info['is_success']
-                        
-                        if success[i] > 0:
-                           success_u.append(u[i][0:20])
-                        if len(success_u)>=min_num: # nishimura
-                            # start = time.time() # Time Check
-                            
-                            # Powered by Skit-learn
-                            pca = PCA()
-                            pca.fit(success_u)
-                            self.envs[i].variance_ratio.append(pca.explained_variance_ratio_)
 
-                            # contribution_rate = tf_pca (success_u) # Powered by Tensorflow
-                            # contribution_rate = numpy_pca (success_u) # Powered by Numpy
-                            # self.envs[i].variance_ratio.append(contribution_rate)
+                        ## 継続の判定のため
+                        #if success[i] > 0 and t > self.T*0.90: # ステップ数の後半10%になった時に判定を始める
+                        #    dtime[i] += 1
+                        #else:
+                        #    dtime[i] = 0
+
+                        # 一定時間（dtime），成功判定が継続した場合，把持姿勢を追加
+                        #if dtime[i] >= 5:
+                        #    success_u.append(u[i][0:20])
+
+                        # 学習の最後5stepで成功した場合のみver
+                        if success[i] > 0 and t > self.T*0.95:
+                            success_u.append(u[i][0:20])
 
                         o_new[i] = curr_o_new['observation']
                     ag_new[i] = curr_o_new['achieved_goal']
                     for idx, key in enumerate(self.info_keys):
                         info_values[idx][t, i] = info[key]
+                    if self.render:
+                        self.envs[i].render()
                 except MujocoException as e:
                     return self.generate_rollouts()
 
@@ -241,7 +243,7 @@ class RolloutWorker:
         with open(path, 'wb') as f:
             pickle.dump(self.policy, f)
 
-    def logs(self, prefix='worker'):
+    def logs(self, prefix='worker', variance_ratio=[], num_axis=0, grasp_pose=[]):
         """Generates a dictionary that contains all collected statistics.
         """
         logs = []
@@ -249,6 +251,18 @@ class RolloutWorker:
         if self.compute_Q:
             logs += [('mean_Q', np.mean(self.Q_history))]
         logs += [('episode', self.n_episodes)]
+
+        # -- motoda add
+        if num_axis > 0 and len(variance_ratio) > 0:
+            for i in range(num_axis):
+                logs += [('pc_{}'.format(i+1), variance_ratio[i]*100)]
+        elif num_axis > 0 and len(variance_ratio) == 0:
+            for i in range(num_axis):
+                logs += [('pc_{}'.format(i+1), 0.0)]
+
+
+
+        logs += [('num_grasp', len(grasp_pose))] 
 
         if prefix is not '' and not prefix.endswith('/'):
             return [(prefix + '/' + key, val) for key, val in logs]
