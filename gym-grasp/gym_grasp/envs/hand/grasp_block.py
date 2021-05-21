@@ -7,7 +7,7 @@ from gym import utils, error
 from gym_grasp.envs import rotations, hand_env
 from gym.envs.robotics.utils import robot_get_obs
 
-import baselines.her.experiment.success_u as su # motoda
+import baselines.her.experiment.pos_database as su # motoda
 
 try:
     import mujoco_py
@@ -163,7 +163,7 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
             if not 'u' in info:
                 return
 
-            c_lambda = su.get_lambda()
+            c_lambda = info['lambda']
             success = self._is_success(achieved_goal, goal).astype(np.float32) # 成否（1,0）を取得する
             
             reward = (success-1.) - c_lambda * (success*info['e'])

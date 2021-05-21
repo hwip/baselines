@@ -94,7 +94,7 @@ class RolloutWorker:
         for i in range(self.rollout_batch_size):
             self.reset_rollout(i)
 
-    def generate_rollouts(self, min_num, num_axis, reward_lambda, success_u=[], is_train=True): # nishimura
+    def generate_rollouts(self, min_num, num_axis, reward_lambda, pos_database, is_train=True):
         """Performs `rollout_batch_size` rollouts in parallel for time horizon `T` with the current
         policy acting on it accordingly.
         """
@@ -138,7 +138,6 @@ class RolloutWorker:
                 # The non-batched case should still have a reasonable shape.
                 u = u.reshape(1, -1)
 
-                
             o_new = np.empty((self.rollout_batch_size, self.dims['o']))
             ag_new = np.empty((self.rollout_batch_size, self.dims['g']))
             success = np.zeros(self.rollout_batch_size)
@@ -167,7 +166,7 @@ class RolloutWorker:
 
                         # 学習の最後5stepで成功した場合のみver
                         if success[i] > 0 and t > self.T*0.95:
-                            success_u.append(u[i][0:20])
+                            pos_database.add_pos(u[i][0:20])
 
                         o_new[i] = curr_o_new['observation']
                     ag_new[i] = curr_o_new['achieved_goal']
@@ -200,7 +199,7 @@ class RolloutWorker:
             episode = dict(o=obs,
                            u=acts,
                            g=goals,
-                           ag=achieved_goals
+                           ag=achieved_goals,
             )
         else:
             episode = dict(o=obs,
@@ -223,7 +222,7 @@ class RolloutWorker:
             self.Q_history.append(np.mean(Qs))
         self.n_episodes += self.rollout_batch_size
 
-        return convert_episode_to_batch_major(episode), success_u # motoda
+        return convert_episode_to_batch_major(episode)
 
     def clear_history(self):
         """Clears all histories that are used for statistics
