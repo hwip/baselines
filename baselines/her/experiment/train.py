@@ -36,7 +36,7 @@ def train(min_num, max_num, num_axis, reward_lambda, # nishimura
           is_init_grasp, target_id, randomize_object,
           policy, rollout_worker, evaluator,
           n_epochs, n_test_rollouts, n_cycles, n_batches, policy_save_interval,
-          save_policies, demo_file, logdir_init, **kwargs):
+          save_policies, demo_file, logdir_init, synergy_type, **kwargs):
     rank = MPI.COMM_WORLD.Get_rank()
 
     latest_policy_path = os.path.join(logger.get_dir(), 'policy_latest.pkl')
@@ -79,7 +79,8 @@ def train(min_num, max_num, num_axis, reward_lambda, # nishimura
 
             episode = rollout_worker.generate_rollouts(min_num=min_num, num_axis=num_axis,
                                                        reward_lambda=reward_lambda,
-                                                       pos_database=pos_database)
+                                                       pos_database=pos_database,
+                                                       synergy_type=synergy_type)
 
             if len(pos_database.get_poslist()) > min_num:
                 pos_database.calc_pca()
@@ -98,7 +99,8 @@ def train(min_num, max_num, num_axis, reward_lambda, # nishimura
         evaluator.clear_history()
         for _ in range(n_test_rollouts):
             evaluator.generate_rollouts(min_num=min_num, num_axis=num_axis,
-                                        reward_lambda=reward_lambda, pos_database=pos_database)
+                                        reward_lambda=reward_lambda, pos_database=pos_database,
+                                        synergy_type=synergy_type)
         # record logs
         logger.record_tabular('epoch', epoch)
         for key, val in evaluator.logs('test'):
@@ -159,7 +161,7 @@ def train(min_num, max_num, num_axis, reward_lambda, # nishimura
 
 def launch(
     env, logdir, n_epochs, min_num, max_num, num_axis, reward_lambda, is_init_grasp, target_id, randomize_object, num_cpu, seed, replay_strategy, policy_save_interval, clip_return,
-        demo_file, logdir_tf=None, override_params={}, save_policies=True, logdir_init=None
+        demo_file, logdir_tf=None, override_params={}, save_policies=True, logdir_init=None, synergy_type='actuator'
 ):
     # Fork for multi-CPU MPI implementation.
     if num_cpu > 1:
@@ -193,6 +195,7 @@ def launch(
     params = config.DEFAULT_PARAMS
     params['env_name'] = env
     params['replay_strategy'] = replay_strategy
+    params['synergy_type'] = synergy_type
     if env in config.DEFAULT_ENV_PARAMS:
         params.update(config.DEFAULT_ENV_PARAMS[env])  # merge env-specific parameters in
     params.update(**override_params)  # makes it possible to override any parameter
@@ -261,12 +264,13 @@ def launch(
     evaluator.seed(rank_seed)
 
     train(
-        min_num=min_num, max_num=max_num, num_axis=num_axis, reward_lambda=reward_lambda, # nishimura
+        min_num=min_num, max_num=max_num, num_axis=num_axis, reward_lambda=reward_lambda,
         is_init_grasp=is_init_grasp, target_id=target_id, randomize_object=randomize_object,
         logdir=logdir, policy=policy, rollout_worker=rollout_worker,
         evaluator=evaluator, n_epochs=n_epochs, n_test_rollouts=params['n_test_rollouts'],
         n_cycles=params['n_cycles'], n_batches=params['n_batches'],
-        policy_save_interval=policy_save_interval, save_policies=save_policies, demo_file=demo_file, logdir_init=logdir_init)
+        policy_save_interval=policy_save_interval, save_policies=save_policies, demo_file=demo_file,
+        logdir_init=logdir_init, synergy_type=synergy_type)
 
 
     # Save Trained Network
@@ -278,24 +282,42 @@ def launch(
 
 
 @click.command()
-@click.option('--env', type=str, default='FetchReach-v1', help='the name of the OpenAI Gym environment that you want to train on')
-@click.option('--logdir', type=str, default=None, help='the path to where logs and policy pickles should go. If not specified, creates a folder in /tmp/')
-@click.option('--n_epochs', type=int, default=50, help='the number of training epochs to run')
-@click.option('--min_num', type=int, default=100,help='minimum number of success_u whether to run PCA')
-@click.option('--max_num', type=int, default=10000,help='limit of success_u for PCA')
-@click.option('--num_axis', type=int, default=5,help='number of principal components to calculate the reward function')
-@click.option('--reward_lambda', type=float, default=1.,help='a weight for the second term of the reward function')
-@click.option('--num_cpu', type=int, default=1, help='the number of CPU cores to use (using MPI)')
-@click.option('--seed', type=int, default=0, help='the random seed used to seed both the environment and the training code')
-@click.option('--policy_save_interval', type=int, default=5, help='the interval with which policy pickles are saved. If set to 0, only the best and latest policy will be pickled.')
-@click.option('--replay_strategy', type=click.Choice(['future', 'none']), default='future', help='the HER replay strategy to be used. "future" uses HER, "none" disables HER.')
+@click.option('--env', type=str, default='FetchReach-v1',
+              help='the name of the OpenAI Gym environment that you want to train on')
+@click.option('--logdir', type=str, default=None,
+              help='the path to where logs and policy pickles should go. If not specified, creates a folder in /tmp/')
+@click.option('--n_epochs', type=int, default=50,
+              help='the number of training epochs to run')
+@click.option('--min_num', type=int, default=20,
+              help='minimum number of success_u whether to run PCA')
+@click.option('--max_num', type=int, default=2000,
+              help='limit of success_u for PCA')
+@click.option('--num_axis', type=int, default=5,
+              help='number of principal components to calculate the reward function')
+@click.option('--reward_lambda', type=float, default=0.4,
+              help='a weight for the second term of the reward function')
+@click.option('--num_cpu', type=int, default=1,
+              help='the number of CPU cores to use (using MPI)')
+@click.option('--seed', type=int, default=0,
+              help='the random seed used to seed both the environment and the training code')
+@click.option('--policy_save_interval', type=int, default=5,
+              help='the interval with which policy pickles are saved. '
+                   'If set to 0, only the best and latest policy will be pickled.')
+@click.option('--replay_strategy', type=click.Choice(['future', 'none']),
+              default='future', help='the HER replay strategy to be used. "future" uses HER, "none" disables HER.')
 @click.option('--clip_return', type=int, default=1, help='whether or not returns should be clipped')
-@click.option('--demo_file', type=str, default = 'PATH/TO/DEMO/DATA/FILE.npz', help='demo data file path')
+@click.option('--demo_file', type=str, default='PATH/TO/DEMO/DATA/FILE.npz', help='demo data file path')
 @click.option('--logdir_tf', type=str, default=None, help='the path to save tf.variables.')
 @click.option('--logdir_init', type=str, default=None, help='the path to load default paramater.') # There are meta data at model/init
 @click.option('--is_init_grasp', type=bool, default=False, help='Switch Initial Grasp Pose') 
-@click.option('--target_id', type=int, default=0, help='Target id (if randomize_object==False) -->> ["box:joint", "apple:joint", "banana:joint", "beerbottle:joint", "book:joint", "needle:joint", "pen:joint", "teacup:joint"]') 
+@click.option('--target_id', type=int, default=0,
+              help='Target id (if randomize_object==False) '
+                   '-->> ["box:joint", "apple:joint", "banana:joint", "beerbottle:joint", '
+                   '      "book:joint", "needle:joint", "pen:joint", "teacup:joint"]')
 @click.option('--randomize_object', type=bool, default=True, help='randomize_object or not (True/False) default=True') 
+@click.option('--synergy_type', type=click.Choice(['actuator', 'joint']), default='actuator',
+              help='the type of samples calculated in PCA. '
+                   '"actuator" uses actuator inputs, "joint" uses joint positions ')
 
 def main(**kwargs):
     clogger.info("Main Func @her.experiment.train")

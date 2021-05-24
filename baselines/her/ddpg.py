@@ -23,7 +23,7 @@ class DDPG(object):
                  Q_lr, pi_lr, norm_eps, norm_clip, max_u, action_l2, clip_obs, scope, T,
                  rollout_batch_size, subtract_goals, relative_goals, clip_pos_returns, clip_return,
                  bc_loss, q_filter, num_demo, demo_batch_size, prm_loss_weight, aux_loss_weight,
-                 sample_transitions, gamma, reuse=False, **kwargs):
+                 sample_transitions, gamma, synergy_type, reuse=False, **kwargs):
         """Implementation of DDPG that is used in combination with Hindsight Experience Replay (HER).
             Added functionality to use demonstrations for training to Overcome exploration problem.
 
@@ -59,6 +59,9 @@ class DDPG(object):
             demo_batch_size: number of samples to be used from the demonstrations buffer, per mpi thread
             prm_loss_weight: Weight corresponding to the primary loss
             aux_loss_weight: Weight corresponding to the auxilliary loss also called the cloning loss
+
+            ==for synergy learning
+            synergy_type: "actuator" or "joint". See "train.py".
         """
         if self.clip_return is None:
             self.clip_return = np.inf
@@ -92,8 +95,12 @@ class DDPG(object):
             self._create_network(reuse=reuse)
 
         # Configure the replay buffer.
-        buffer_shapes = {key: (self.T if key != 'o' else self.T+1, *input_shapes[key])
-                         for key, val in input_shapes.items()}
+        if synergy_type == 'actuator':
+            buffer_shapes = {key: (self.T if key != 'o' else self.T+1, *input_shapes[key])
+                             for key, val in input_shapes.items()}
+        elif synergy_type == 'joint':
+            buffer_shapes = {key: (self.T if key != 'o' and key != 'pos' else self.T+1, *input_shapes[key])
+                             for key, val in input_shapes.items()}
         buffer_shapes['g'] = (buffer_shapes['g'][0], self.dimg)
         buffer_shapes['ag'] = (self.T+1, self.dimg)
 

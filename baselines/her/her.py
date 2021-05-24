@@ -45,12 +45,11 @@ def make_sample_her_transitions(replay_strategy, replay_k, reward_fun):
         future_ag = episode_batch['ag'][episode_idxs[her_indexes], future_t]
         transitions['g'][her_indexes] = future_ag
 
-        # Reconstruct info dictionary for reward  computation.
+        # Reconstruct info dictionary for reward computation.
         info = {}
         for key, value in transitions.items():
             if key.startswith('info_'):
                 info[key.replace('info_', '')] = value
-
 
         info['u'] = transitions['u'] # motoda
 
@@ -68,13 +67,13 @@ def make_sample_her_transitions(replay_strategy, replay_k, reward_fun):
         poslist = pos_database.get_poslist()
         if len(poslist) > 10:
             pos_database.calc_pca()
-            pos = transitions['u'][:, 0:20]
-            info['e'] = np.linalg.norm(pos -
-                                       pos_database.calc_inverse(pos_database.calc_transform(pos)),
+            poss = transitions['pos']
+            info['e'] = np.linalg.norm(poss -
+                                       pos_database.calc_inverse(pos_database.calc_transform(poss)),
                                        axis=1)
             # print (info['e'])
         else:
-            info['e'] = [0.]*transitions['u'][:, 0:20].shape[0]
+            info['e'] = [0.]*transitions['pos'].shape[0]
         info['lambda'] = pos_database.get_lambda()
 
         # Re-compute reward since we may have substituted the goal.

@@ -146,6 +146,7 @@ def configure_ddpg(dims, params, reuse=False, use_mpi=True, clip_return=True):
     gamma = params['gamma']
     rollout_batch_size = params['rollout_batch_size']
     ddpg_params = params['ddpg_params']
+    synergy_type = params['synergy_type']
 
     input_dims = dims.copy()
 
@@ -170,7 +171,7 @@ def configure_ddpg(dims, params, reuse=False, use_mpi=True, clip_return=True):
     ddpg_params['info'] = {
         'env_name': params['env_name'],
     }
-    policy = DDPG(reuse=reuse, **ddpg_params, use_mpi=use_mpi)
+    policy = DDPG(reuse=reuse, **ddpg_params, use_mpi=use_mpi, synergy_type=synergy_type)
     return policy
 
 
@@ -178,12 +179,18 @@ def configure_dims(params):
     env = cached_make_env(params['make_env'])
     env.reset()
     obs, _, _, info = env.step(env.action_space.sample())
-    
+
+    pos_dim = -1
+    if params['synergy_type'] == 'actuator':
+        pos_dim = env.action_space.sample()[:20]
+    elif params['synergy_type'] == 'joint':
+        pos_dim = obs['observation'][3:25]
 
     dims = {
         'o': obs['observation'].shape[0],
         'u': env.action_space.shape[0],
         'g': obs['desired_goal'].shape[0],
+        'pos': pos_dim.shape[0]
     }
     clogger.info("input_dims = {}".format(dims))
     clogger.info("env.action_apace={}".format(env.action_space))
