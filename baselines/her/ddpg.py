@@ -203,9 +203,11 @@ class DDPG(object):
 
                 self.o_stats.update(transitions['o'])
                 self.g_stats.update(transitions['g'])
+                self.e_stats.update(transitions['e'])
 
                 self.o_stats.recompute_stats()
                 self.g_stats.recompute_stats()
+                self.e_stats.recompute_stats()
             episode.clear()
 
     def store_episode(self, episode_batch, update_stats=True):
@@ -229,9 +231,11 @@ class DDPG(object):
 
             self.o_stats.update(transitions['o'])
             self.g_stats.update(transitions['g'])
+            self.e_stats.update(transitions['e'])
 
             self.o_stats.recompute_stats()
             self.g_stats.recompute_stats()
+            self.e_stats.recompute_stats()
 
     def get_current_buffer_size(self):
         return self.buffer.get_current_size()
@@ -322,6 +326,10 @@ class DDPG(object):
             if reuse:
                 vs.reuse_variables()
             self.g_stats = Normalizer(self.dimg, self.norm_eps, self.norm_clip, sess=self.sess)
+        with tf.variable_scope('e_stats') as vs:
+            if reuse:
+                vs.reuse_variables()
+            self.e_stats = Normalizer(1, self.norm_eps, self.norm_clip, sess=self.sess)
 
         # mini-batch sampling.
         batch = self.staging_tf.get()
@@ -408,6 +416,8 @@ class DDPG(object):
         logs += [('stats_o/std', np.mean(self.sess.run([self.o_stats.std])))]
         logs += [('stats_g/mean', np.mean(self.sess.run([self.g_stats.mean])))]
         logs += [('stats_g/std', np.mean(self.sess.run([self.g_stats.std])))]
+        logs += [('stats_e/mean', np.mean(self.sess.run([self.e_stats.mean])))]
+        logs += [('stats_e/std', np.mean(self.sess.run([self.e_stats.std])))]
 
         if prefix is not '' and not prefix.endswith('/'):
             return [(prefix + '/' + key, val) for key, val in logs]

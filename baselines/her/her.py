@@ -54,7 +54,7 @@ def make_sample_her_transitions(replay_strategy, replay_k, reward_fun):
         info['u'] = transitions['u'] # motoda
 
         # ==　この場面でPCAの計算を実施する場合 by Motoda
-        #success_u = su.get_success_u()
+        # success_u = su.get_success_u()
         # if len(success_u) > 10:
         #     pca = PCA(3) # 主成分の次元数
         #     pca.fit(success_u)
@@ -74,6 +74,8 @@ def make_sample_her_transitions(replay_strategy, replay_k, reward_fun):
             # print (info['e'])
         else:
             info['e'] = [0.]*transitions['pos'].shape[0]
+
+        transitions['e'] = np.array(info['e'])
         info['lambda'] = pos_database.get_lambda()
 
         # Re-compute reward since we may have substituted the goal.
