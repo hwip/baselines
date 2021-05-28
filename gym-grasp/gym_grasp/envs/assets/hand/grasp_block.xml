@@ -1,4 +1,34 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+An order of joints (25 DoFs)
+The name of joints can be seen in a below specification.
+https://www.shadowrobot.com/wp-content/uploads/shadow_dexterous_hand_technical_specification_E_20190221.pdf
+0 : robot0:slide
+1 : robot0:WRJ1
+2 : robot0:WRJ0
+3 : robot0:FFJ3
+4 : robot0:FFJ2
+5 : robot0:FFJ1
+6 : robot0:FFJ0
+7 : robot0:MFJ3
+8 : robot0:MFJ2
+9 : robot0:MFJ1
+10: robot0:MFJ0
+11: robot0:RFJ3
+12: robot0:RFJ2
+13: robot0:RFJ1
+14: robot0:RFJ0
+15: robot0:LFJ4
+16: robot0:LFJ3
+17: robot0:LFJ2
+18: robot0:LFJ1
+19: robot0:LFJ0
+20: robot0:THJ4
+21: robot0:THJ3
+22: robot0:THJ2
+23: robot0:THJ1
+24: robot0:THJ0
+-->
 <mujoco>
     <compiler angle="radian" coordinate="local" meshdir="../stls" texturedir="../textures"></compiler>
     <option timestep="0.002" iterations="20" apirate="200">

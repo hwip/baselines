@@ -3,7 +3,6 @@ import os
 
 import sklearn
 from sklearn.decomposition import PCA
-import baselines.her.experiment.success_u as su
 
 def make_sample_her_transitions(replay_strategy, replay_k, reward_fun):
     """Creates a sample function that can be used for HER experience replay.
@@ -20,7 +19,7 @@ def make_sample_her_transitions(replay_strategy, replay_k, reward_fun):
     else:  # 'replay_strategy' == 'none'
         future_p = 0
 
-    def _sample_her_transitions(episode_batch, batch_size_in_transitions):
+    def _sample_her_transitions(episode_batch, batch_size_in_transitions, pos_database):
         """episode_batch is {key: array(buffer_size x T x dim_key)}
         """
         T = episode_batch['u'].shape[1]
@@ -46,25 +45,16 @@ def make_sample_her_transitions(replay_strategy, replay_k, reward_fun):
         future_ag = episode_batch['ag'][episode_idxs[her_indexes], future_t]
         transitions['g'][her_indexes] = future_ag
 
-        # Reconstruct info dictionary for reward  computation.
+        # Reconstruct info dictionary for reward computation.
         info = {}
         for key, value in transitions.items():
             if key.startswith('info_'):
                 info[key.replace('info_', '')] = value
 
-
         info['u'] = transitions['u'] # motoda
 
-        ### 報酬関数に含まれる誤差の計算
-
-        # ==  読み込みがうまく行かない場合の実装　by Motoda
-        # if os.path.exists('success_u_110.npy'):
-        #     success_u = np.load('success_u_110.npy')
-        # else:
-        #     success_u = []
-
         # ==　この場面でPCAの計算を実施する場合 by Motoda
-        #success_u = su.get_success_u()
+        # success_u = su.get_success_u()
         # if len(success_u) > 10:
         #     pca = PCA(3) # 主成分の次元数
         #     pca.fit(success_u)
@@ -73,15 +63,20 @@ def make_sample_her_transitions(replay_strategy, replay_k, reward_fun):
         # else:
         #     info['e'] = [0.]*transitions['u'][:, 0:20].shape[0]
 
-        # ==　別ファイル（success_u.py）で計算を行う場合 by Motoda
-        success_u = su.get_success_u()
-        if len(success_u) > 10:
-            pos = transitions['u'][:, 0:20]
-            info['e'] = np.linalg.norm(pos - su.calc_inverse(su.calc_transform(pos)), axis=1)
+        # ==　別ファイル（pos_database.py）で計算を行う場合 by Motoda
+        poslist = pos_database.get_poslist()
+        if len(poslist) > 10:
+            pos_database.calc_pca()
+            poss = transitions['pos']
+            info['e'] = np.linalg.norm(poss -
+                                       pos_database.calc_inverse(pos_database.calc_transform(poss)),
+                                       axis=1)
             # print (info['e'])
         else:
-            info['e'] = [0.]*transitions['u'][:, 0:20].shape[0]
+            info['e'] = [0.]*transitions['pos'].shape[0]
 
+        transitions['e'] = np.array(info['e'])
+        info['lambda'] = pos_database.get_lambda()
 
         # Re-compute reward since we may have substituted the goal.
         reward_params = {k: transitions[k] for k in ['ag_2', 'g']} 

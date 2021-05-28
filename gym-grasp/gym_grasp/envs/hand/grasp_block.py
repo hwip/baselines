@@ -7,7 +7,7 @@ from gym import utils, error
 from gym_grasp.envs import rotations, hand_env
 from gym.envs.robotics.utils import robot_get_obs
 
-import baselines.her.experiment.success_u as su # motoda
+import baselines.her.experiment.pos_database as su # motoda
 
 try:
     import mujoco_py
@@ -37,7 +37,7 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
         randomize_initial_position=True, randomize_initial_rotation=True, randomize_object=True,
         distance_threshold=0.01, rotation_threshold=0.1, n_substeps=20, relative_control=False,
         ignore_z_target_rotation=False, 
-        target_id = 0, num_axis = 5, reward_lambda=1.
+        target_id = 0, num_axis = 5, reward_lambda=0.5
     ):
         """Initializes a new Hand manipulation environment.
 
@@ -163,7 +163,7 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
             if not 'u' in info:
                 return
 
-            c_lambda = su.get_lambda()
+            c_lambda = info['lambda']
             success = self._is_success(achieved_goal, goal).astype(np.float32) # 成否（1,0）を取得する
             
             reward = (success-1.) - c_lambda * (success*info['e'])
@@ -317,6 +317,7 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
         # but does only one value in the observation array have a positive effect on RL?
         observation = np.concatenate([robot_qpos, robot_qvel, object_qvel, achieved_goal, [self.target_id]])
         # observation = np.concatenate([robot_qpos, robot_qvel, object_qvel, achieved_goal]) # temp
+
         return {
             'observation': observation.copy(),
             'achieved_goal': achieved_goal.copy(),
@@ -361,7 +362,7 @@ class GraspBlockEnv(ManipulateEnv):
             randomize_initial_position=False, reward_type=reward_type,
             distance_threshold=0.05,
             rotation_threshold=100.0,
-            randomize_object=False, target_id = 0, num_axis = 5
+            randomize_object=False, target_id = 0, num_axis = 5, reward_lambda=0.4
         )
 '''
 Object_list:

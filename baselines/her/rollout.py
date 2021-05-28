@@ -94,7 +94,8 @@ class RolloutWorker:
         for i in range(self.rollout_batch_size):
             self.reset_rollout(i)
 
-    def generate_rollouts(self, min_num, num_axis, reward_lambda, success_u=[], is_train=True): # nishimura
+    def generate_rollouts(self, min_num, num_axis, reward_lambda, pos_database, is_train=True,
+                          success_type='Sequence', synergy_type='actuator'):
         """Performs `rollout_batch_size` rollouts in parallel for time horizon `T` with the current
         policy acting on it accordingly.
         """
@@ -138,7 +139,6 @@ class RolloutWorker:
                 # The non-batched case should still have a reasonable shape.
                 u = u.reshape(1, -1)
 
-                
             o_new = np.empty((self.rollout_batch_size, self.dims['o']))
             ag_new = np.empty((self.rollout_batch_size, self.dims['g']))
             success = np.zeros(self.rollout_batch_size)
@@ -152,22 +152,32 @@ class RolloutWorker:
                     # We fully ignore the reward here because it will have to be re-computed
                     # for HER.
                     curr_o_new, _, _, info = self.envs[i].step(u[i])
+
+                    pos = None
+                    if synergy_type == 'actuator':
+                        pos = u[i][0:20]
+                    elif synergy_type == 'joint':
+                        # only joints of fingers, except joints of the wrist and the vertical slider.
+                        pos = curr_o_new['observation'][3:25]
+
                     if 'is_success' in info:
                         success[i] = info['is_success']
 
-                        ## 継続の判定のため
-                        #if success[i] > 0 and t > self.T*0.90: # ステップ数の後半10%になった時に判定を始める
-                        #    dtime[i] += 1
-                        #else:
-                        #    dtime[i] = 0
+                        # 継続の判定のため
+                        if success[i] > 0 and t > self.T*0.90:  # ステップ数の後半10%になった時に判定を始める
+                           dtime[i] += 1
+                        else:
+                           dtime[i] = 0
 
-                        # 一定時間（dtime），成功判定が継続した場合，把持姿勢を追加
-                        #if dtime[i] >= 5:
-                        #    success_u.append(u[i][0:20])
-
-                        # 学習の最後5stepで成功した場合のみver
-                        if success[i] > 0 and t > self.T*0.95:
-                            success_u.append(u[i][0:20])
+                        if success_type == 'Sequence':
+                            # 一定時間（dtime），成功判定が継続した場合，把持姿勢を追加
+                            if dtime[i] >= 5:
+                                pos_database.add_pos(pos)
+                                dtime[i] = 0
+                        elif success_type == 'Last':
+                            # 学習の最後5stepで成功した場合のみver
+                            if success[i] > 0 and t > self.T*0.95:
+                                pos_database.add_pos(pos)
 
                         o_new[i] = curr_o_new['observation']
                     ag_new[i] = curr_o_new['achieved_goal']
@@ -196,11 +206,18 @@ class RolloutWorker:
         achieved_goals.append(ag.copy())
         self.initial_o[:] = o
 
+        poss = None
+        if synergy_type == 'actuator':
+            poss = np.array(acts)[:, :, 0:20]
+        elif synergy_type == 'joint':
+            poss = np.array(obs)[:, :, 3:25]
+
         if is_train:
             episode = dict(o=obs,
                            u=acts,
                            g=goals,
-                           ag=achieved_goals
+                           ag=achieved_goals,
+                           pos=poss
             )
         else:
             episode = dict(o=obs,
@@ -209,6 +226,7 @@ class RolloutWorker:
                            g=goals,
                            ag=achieved_goals,
                            q=q_vals,
+                           pos=poss
             )
             
         for key, value in zip(self.info_keys, info_values):
@@ -223,7 +241,7 @@ class RolloutWorker:
             self.Q_history.append(np.mean(Qs))
         self.n_episodes += self.rollout_batch_size
 
-        return convert_episode_to_batch_major(episode), success_u # motoda
+        return convert_episode_to_batch_major(episode)
 
     def clear_history(self):
         """Clears all histories that are used for statistics
