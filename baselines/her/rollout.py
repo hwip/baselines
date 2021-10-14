@@ -2,6 +2,7 @@ from collections import deque
 
 import numpy as np
 import pickle
+import mujoco_py
 from mujoco_py import MujocoException
 
 from baselines.her.util import convert_episode_to_batch_major, store_args
@@ -152,6 +153,31 @@ class RolloutWorker:
                     # We fully ignore the reward here because it will have to be re-computed
                     # for HER.
                     curr_o_new, _, _, info = self.envs[i].step(u[i])
+
+                    # print out robot status (add by motoda)
+                    # raw_contact_external_forces = self.envs[i].sim.data.cfrc_ext
+                    # raw_contact = self.envs[i].sim.data.contact
+                    # for name in self.envs[i].sim.model.joint_names:
+                    #    print (name)
+                    #    qpos = self.envs[i].sim.data.get_joint_qpos(name)
+                    #    qvel = self.envs[i].sim.data.get_joint_qvel(name)
+
+                    for j in range(self.envs[i].sim.data.ncon):
+                        contact = self.envs[i].sim.data.contact[j]   
+                        if self.envs[i].sim.model.geom_id2name(contact.geom2) == 'object' and self.envs[i].sim.model.geom_id2name(contact.geom1) != None:
+                            print('contact {} dist {}'.format(j, contact.dist))
+                            print(' - geom1', contact.geom1, self.envs[i].sim.model.geom_id2name(contact.geom1))
+                            print(' - geom2', contact.geom2, self.envs[i].sim.model.geom_id2name(contact.geom2))
+
+                            # There's more stuff in the data structure
+                            # See the mujoco documentation for more info!
+                            geom2_body = self.envs[i].sim.model.geom_bodyid[self.envs[i].sim.data.contact[i].geom2]
+                            print(' -- Contact force on geom2 body', self.envs[i].sim.data.cfrc_ext[geom2_body])
+                            print(' - norm', np.sqrt(np.sum(np.square(self.envs[i].sim.data.cfrc_ext[geom2_body]))))
+                            # Use internal functions to read out mj_contactForce
+                            c_array = np.zeros(6, dtype=np.float64)
+                            mujoco_py.functions.mj_contactForce(self.envs[i].sim.model, self.envs[i].sim.data, i, c_array)
+                            print(' - c_array', c_array)
 
                     pos = None
                     if synergy_type == 'actuator':
