@@ -166,18 +166,20 @@ class RolloutWorker:
                         contact = self.envs[i].sim.data.contact[j]   
                         if self.envs[i].sim.model.geom_id2name(contact.geom2) == 'object' and self.envs[i].sim.model.geom_id2name(contact.geom1) != None:
                             print('contact {} dist {}'.format(j, contact.dist))
-                            print(' - geom1', contact.geom1, self.envs[i].sim.model.geom_id2name(contact.geom1))
-                            print(' - geom2', contact.geom2, self.envs[i].sim.model.geom_id2name(contact.geom2))
+                            print('   contact pos ', contact.pos)
+                            print('   geom1', contact.geom1, self.envs[i].sim.model.geom_id2name(contact.geom1))
+                            print('   geom2', contact.geom2, self.envs[i].sim.model.geom_id2name(contact.geom2))
 
                             # There's more stuff in the data structure
                             # See the mujoco documentation for more info!
-                            geom2_body = self.envs[i].sim.model.geom_bodyid[self.envs[i].sim.data.contact[i].geom2]
-                            print(' -- Contact force on geom2 body', self.envs[i].sim.data.cfrc_ext[geom2_body])
-                            print(' - norm', np.sqrt(np.sum(np.square(self.envs[i].sim.data.cfrc_ext[geom2_body]))))
+                            geom2_body = self.envs[i].sim.model.geom_bodyid[self.envs[i].sim.data.contact[j].geom2]
+                            print('   Contact force on geom2 body', self.envs[i].sim.data.cfrc_ext[geom2_body])
+                            print('   norm', np.sqrt(np.sum(np.square(self.envs[i].sim.data.cfrc_ext[geom2_body]))))
                             # Use internal functions to read out mj_contactForce
                             c_array = np.zeros(6, dtype=np.float64)
-                            mujoco_py.functions.mj_contactForce(self.envs[i].sim.model, self.envs[i].sim.data, i, c_array)
-                            print(' - c_array', c_array)
+                            mujoco_py.functions.mj_contactForce(self.envs[i].sim.model, self.envs[i].sim.data, j, c_array) # (f, n) f: 作用する力，n: トルク
+                            print('   c_array', c_array)
+                            # A 6D vector specifying the collision forces/torques[3D force + 3D torque] between the given groups. Vector of 0's in case there was no collision.
 
                     pos = None
                     if synergy_type == 'actuator':
