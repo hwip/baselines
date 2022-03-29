@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import random
+random.seed()
 
 from gym import utils, error
 # from gym.envs.robotics import rotations, hand_env
@@ -78,7 +79,7 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
         self.rotation_threshold = rotation_threshold
         self.reward_type = reward_type
         self.ignore_z_target_rotation = ignore_z_target_rotation
-        
+
         self.object_list = ["box:joint", "apple:joint", "banana:joint", "beerbottle:joint", "book:joint",
                             "needle:joint", "pen:joint", "teacup:joint"]
         self.target_id = target_id
@@ -244,7 +245,7 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
 
         # Run the simulation for a bunch of timesteps to let everything settle in.
         for _ in range(10):
-            self._set_action(np.zeros(21))
+            self._set_action(np.zeros(23))
             try:
                 self.sim.step()
             except mujoco_py.MujocoException:
@@ -362,7 +363,7 @@ class GraspBlockEnv(ManipulateEnv):
             randomize_initial_position=False, reward_type=reward_type,
             distance_threshold=0.05,
             rotation_threshold=100.0,
-            randomize_object=False, target_id = 0, num_axis = 5, reward_lambda=0.4
+            randomize_object=False, target_id=2, num_axis=5, reward_lambda=0.4
         )
 '''
 Object_list:

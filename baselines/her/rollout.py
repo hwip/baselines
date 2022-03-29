@@ -158,7 +158,7 @@ class RolloutWorker:
                         pos = u[i][0:20]
                     elif synergy_type == 'joint':
                         # only joints of fingers, except joints of the wrist and the vertical slider.
-                        pos = curr_o_new['observation'][3:25]
+                        pos = curr_o_new['observation'][5:27]
 
                     if 'is_success' in info:
                         success[i] = info['is_success']
@@ -210,7 +210,7 @@ class RolloutWorker:
         if synergy_type == 'actuator':
             poss = np.array(acts)[:, :, 0:20]
         elif synergy_type == 'joint':
-            poss = np.array(obs)[:, :, 3:25]
+            poss = np.array(obs)[:, :, 5:27]
 
         if is_train:
             episode = dict(o=obs,
