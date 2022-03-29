@@ -29,6 +29,8 @@ class ReplayBuffer:
 
         self.lock = threading.Lock()
 
+        self.pos_database = None
+
     @property
     def full(self):
         with self.lock:
@@ -47,7 +49,7 @@ class ReplayBuffer:
         buffers['o_2'] = buffers['o'][:, 1:, :]
         buffers['ag_2'] = buffers['ag'][:, 1:, :]
 
-        transitions = self.sample_transitions(buffers, batch_size)
+        transitions = self.sample_transitions(buffers, batch_size, self.pos_database)
 
         for key in (['r', 'o_2', 'ag_2'] + list(self.buffers.keys())):
             assert key in transitions, "key %s missing from transitions" % key
@@ -106,3 +108,6 @@ class ReplayBuffer:
         if inc == 1:
             idx = idx[0]
         return idx
+
+    def set_pos_database(self, pos_database):
+        self.pos_database = pos_database

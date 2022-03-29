@@ -7,6 +7,39 @@ from mujoco_py import MujocoException
 from baselines.her.util import convert_episode_to_batch_major, store_args
 
 
+# --------------------------------------------------------------------------------------
+from baselines.custom_logger import CustomLoggerObject
+clogger = CustomLoggerObject()
+clogger.info("MyLogger is working!!")
+# --------------------------------------------------------------------------------------
+
+# --Hara work (add by motoda)------
+import time
+import tensorflow as tf
+def tf_pca(data_tensor):
+    mean = tf.reduce_mean(data_tensor, axis=0, keepdims=True)
+    mean_adj = tf.subtract(data_tensor,mean) #行列から平均を引いているｰ>グラム行列の期待値が分散共分散行列になる（？） # mottoda modify
+    # TODO:ちょっと曖昧なので個々の関係はまた調べること
+    n_sample = tf.cast(tf.shape(data_tensor)[0]-1, tf.float32) # 不変分散で実装
+    # 特異値分解をPCAに戻すときの変換，参考文献のSVDとPCAの関係を参考
+    cov = tf.matmul(mean_adj, mean_adj, transpose_a=True) / n_sample # 分散共分散行列を計算して，期待値を計算
+    # 特異値分解
+    # S:固有値^2, U:固有ベクトルを並べたもの=主成分ベクトル, V=U^T
+    S, U, V = tf.linalg.svd(cov)
+
+    # 寄与率の計算
+    lambda_vector=tf.divide(S, n_sample) #固有値の計算
+    contribution_rate=tf.divide(lambda_vector,tf.reduce_sum(lambda_vector)) #寄与率の計算，固有値/固有値の総和で定義される
+    return contribution_rate
+def numpy_pca(data):
+    mean = np.mean(data, axis=0, keepdims=True)
+    data_mean_adj = data - mean
+    cov = np.cov(data_mean_adj, rowvar=False)
+    U, S, V = np.linalg.svd(cov)
+    contribution_rate = S / np.sum(S)
+    return contribution_rate
+# --------
+
 class RolloutWorker:
 
     @store_args
@@ -61,10 +94,12 @@ class RolloutWorker:
         for i in range(self.rollout_batch_size):
             self.reset_rollout(i)
 
-    def generate_rollouts(self):
+    def generate_rollouts(self, min_num, num_axis, reward_lambda, pos_database, is_train=True,
+                          success_type='Sequence', synergy_type='actuator'):
         """Performs `rollout_batch_size` rollouts in parallel for time horizon `T` with the current
         policy acting on it accordingly.
         """
+
         self.reset_all_rollouts()
 
         # compute observations
@@ -73,8 +108,13 @@ class RolloutWorker:
         o[:] = self.initial_o
         ag[:] = self.initial_ag
 
+        # evaluate grasp
+        dtime = np.zeros(self.rollout_batch_size)
+
         # generate episodes
         obs, achieved_goals, acts, goals, successes = [], [], [], [], []
+        q_vals = []
+        fcs = []
         info_values = [np.empty((self.T, self.rollout_batch_size, self.dims['info_' + key]), np.float32) for key in self.info_keys]
         Qs = []
         for t in range(self.T):
@@ -83,11 +123,15 @@ class RolloutWorker:
                 compute_Q=self.compute_Q,
                 noise_eps=self.noise_eps if not self.exploit else 0.,
                 random_eps=self.random_eps if not self.exploit else 0.,
-                use_target_net=self.use_target_net)
-
+                use_target_net=self.use_target_net,)
+            # clogger.info("compute_Q[{}, {}]: policy_output: {}".format(self.compute_Q, t, policy_output))
+            
             if self.compute_Q:
-                u, Q = policy_output
+                u, Q, fc = policy_output
                 Qs.append(Q)
+                q_vals.append(Q.copy())
+                if fc.ndim == 1:
+                    fc = fc.reshape(1,-1)                            
             else:
                 u = policy_output
 
@@ -98,15 +142,44 @@ class RolloutWorker:
             o_new = np.empty((self.rollout_batch_size, self.dims['o']))
             ag_new = np.empty((self.rollout_batch_size, self.dims['g']))
             success = np.zeros(self.rollout_batch_size)
+
             # compute new states and observations
             for i in range(self.rollout_batch_size):
+                # -- nishimura
+                # self.envs[i].set_initial_param(_reward_lambda=reward_lambda, _num_axis=num_axis)
+                # --
                 try:
                     # We fully ignore the reward here because it will have to be re-computed
                     # for HER.
                     curr_o_new, _, _, info = self.envs[i].step(u[i])
+
+                    pos = None
+                    if synergy_type == 'actuator':
+                        pos = u[i][0:20]
+                    elif synergy_type == 'joint':
+                        # only joints of fingers, except joints of the wrist and the vertical slider.
+                        pos = curr_o_new['observation'][5:27]
+
                     if 'is_success' in info:
                         success[i] = info['is_success']
-                    o_new[i] = curr_o_new['observation']
+
+                        # 継続の判定のため
+                        if success[i] > 0 and t > self.T*0.90:  # ステップ数の後半10%になった時に判定を始める
+                           dtime[i] += 1
+                        else:
+                           dtime[i] = 0
+
+                        if success_type == 'Sequence':
+                            # 一定時間（dtime），成功判定が継続した場合，把持姿勢を追加
+                            if dtime[i] >= 5:
+                                pos_database.add_pos(pos)
+                                dtime[i] = 0
+                        elif success_type == 'Last':
+                            # 学習の最後5stepで成功した場合のみver
+                            if success[i] > 0 and t > self.T*0.95:
+                                pos_database.add_pos(pos)
+
+                        o_new[i] = curr_o_new['observation']
                     ag_new[i] = curr_o_new['achieved_goal']
                     for idx, key in enumerate(self.info_keys):
                         info_values[idx][t, i] = info[key]
@@ -124,6 +197,8 @@ class RolloutWorker:
             achieved_goals.append(ag.copy())
             successes.append(success.copy())
             acts.append(u.copy())
+            if self.compute_Q:
+                fcs.append(fc.copy())
             goals.append(self.g.copy())
             o[...] = o_new
             ag[...] = ag_new
@@ -131,10 +206,29 @@ class RolloutWorker:
         achieved_goals.append(ag.copy())
         self.initial_o[:] = o
 
-        episode = dict(o=obs,
-                       u=acts,
-                       g=goals,
-                       ag=achieved_goals)
+        poss = None
+        if synergy_type == 'actuator':
+            poss = np.array(acts)[:, :, 0:20]
+        elif synergy_type == 'joint':
+            poss = np.array(obs)[:, :, 5:27]
+
+        if is_train:
+            episode = dict(o=obs,
+                           u=acts,
+                           g=goals,
+                           ag=achieved_goals,
+                           pos=poss
+            )
+        else:
+            episode = dict(o=obs,
+                           u=acts,
+                           fc=fcs,
+                           g=goals,
+                           ag=achieved_goals,
+                           q=q_vals,
+                           pos=poss
+            )
+            
         for key, value in zip(self.info_keys, info_values):
             episode['info_{}'.format(key)] = value
 
@@ -167,7 +261,7 @@ class RolloutWorker:
         with open(path, 'wb') as f:
             pickle.dump(self.policy, f)
 
-    def logs(self, prefix='worker'):
+    def logs(self, prefix='worker', variance_ratio=[], num_axis=0, grasp_pose=[]):
         """Generates a dictionary that contains all collected statistics.
         """
         logs = []
@@ -175,6 +269,18 @@ class RolloutWorker:
         if self.compute_Q:
             logs += [('mean_Q', np.mean(self.Q_history))]
         logs += [('episode', self.n_episodes)]
+
+        # -- motoda add
+        if num_axis > 0 and len(variance_ratio) > 0:
+            for i in range(num_axis):
+                logs += [('pc_{}'.format(i+1), variance_ratio[i]*100)]
+        elif num_axis > 0 and len(variance_ratio) == 0:
+            for i in range(num_axis):
+                logs += [('pc_{}'.format(i+1), 0.0)]
+
+
+
+        logs += [('num_grasp', len(grasp_pose))] 
 
         if prefix is not '' and not prefix.endswith('/'):
             return [(prefix + '/' + key, val) for key, val in logs]

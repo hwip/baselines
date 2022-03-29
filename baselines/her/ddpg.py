@@ -11,7 +11,6 @@ from baselines.her.normalizer import Normalizer
 from baselines.her.replay_buffer import ReplayBuffer
 from baselines.common.mpi_adam import MpiAdam
 
-
 def dims_to_shapes(input_dims):
     return {key: tuple([val]) if val > 0 else tuple() for key, val in input_dims.items()}
 
@@ -24,7 +23,7 @@ class DDPG(object):
                  Q_lr, pi_lr, norm_eps, norm_clip, max_u, action_l2, clip_obs, scope, T,
                  rollout_batch_size, subtract_goals, relative_goals, clip_pos_returns, clip_return,
                  bc_loss, q_filter, num_demo, demo_batch_size, prm_loss_weight, aux_loss_weight,
-                 sample_transitions, gamma, reuse=False, **kwargs):
+                 sample_transitions, gamma, synergy_type, reuse=False, **kwargs):
         """Implementation of DDPG that is used in combination with Hindsight Experience Replay (HER).
             Added functionality to use demonstrations for training to Overcome exploration problem.
 
@@ -60,6 +59,9 @@ class DDPG(object):
             demo_batch_size: number of samples to be used from the demonstrations buffer, per mpi thread
             prm_loss_weight: Weight corresponding to the primary loss
             aux_loss_weight: Weight corresponding to the auxilliary loss also called the cloning loss
+
+            ==for synergy learning
+            synergy_type: "actuator" or "joint". See "train.py".
         """
         if self.clip_return is None:
             self.clip_return = np.inf
@@ -70,7 +72,6 @@ class DDPG(object):
         self.dimo = self.input_dims['o']
         self.dimg = self.input_dims['g']
         self.dimu = self.input_dims['u']
-
         # Prepare staging area for feeding data to the model.
         stage_shapes = OrderedDict()
         for key in sorted(self.input_dims.keys()):
@@ -94,8 +95,12 @@ class DDPG(object):
             self._create_network(reuse=reuse)
 
         # Configure the replay buffer.
-        buffer_shapes = {key: (self.T if key != 'o' else self.T+1, *input_shapes[key])
-                         for key, val in input_shapes.items()}
+        if synergy_type == 'actuator':
+            buffer_shapes = {key: (self.T if key != 'o' else self.T+1, *input_shapes[key])
+                             for key, val in input_shapes.items()}
+        elif synergy_type == 'joint':
+            buffer_shapes = {key: (self.T if key != 'o' and key != 'pos' else self.T+1, *input_shapes[key])
+                             for key, val in input_shapes.items()}
         buffer_shapes['g'] = (buffer_shapes['g'][0], self.dimg)
         buffer_shapes['ag'] = (self.T+1, self.dimg)
 
@@ -120,13 +125,13 @@ class DDPG(object):
         return o, g
 
     def get_actions(self, o, ag, g, noise_eps=0., random_eps=0., use_target_net=False,
-                    compute_Q=False):
+                    compute_Q=False,):
         o, g = self._preprocess_og(o, ag, g)
         policy = self.target if use_target_net else self.main
         # values to compute
         vals = [policy.pi_tf]
         if compute_Q:
-            vals += [policy.Q_pi_tf]
+            vals += [policy.Q_pi_tf, policy.pi_tf_fc2]
         # feed
         feed = {
             policy.o_tf: o.reshape(-1, self.dimo),
@@ -150,6 +155,7 @@ class DDPG(object):
             return ret[0]
         else:
             return ret
+        
 
     def initDemoBuffer(self, demoDataFile, update_stats=True): #function that initializes the demo buffer
 
@@ -189,7 +195,7 @@ class DDPG(object):
                 episode['o_2'] = episode['o'][:, 1:, :]
                 episode['ag_2'] = episode['ag'][:, 1:, :]
                 num_normalizing_transitions = transitions_in_episode_batch(episode)
-                transitions = self.sample_transitions(episode, num_normalizing_transitions)
+                transitions = self.sample_transitions(episode, num_normalizing_transitions, self.buffer.pos_database)
 
                 o, o_2, g, ag = transitions['o'], transitions['o_2'], transitions['g'], transitions['ag']
                 transitions['o'], transitions['g'] = self._preprocess_og(o, ag, g)
@@ -197,9 +203,11 @@ class DDPG(object):
 
                 self.o_stats.update(transitions['o'])
                 self.g_stats.update(transitions['g'])
+                self.e_stats.update(transitions['e'])
 
                 self.o_stats.recompute_stats()
                 self.g_stats.recompute_stats()
+                self.e_stats.recompute_stats()
             episode.clear()
 
     def store_episode(self, episode_batch, update_stats=True):
@@ -215,7 +223,7 @@ class DDPG(object):
             episode_batch['o_2'] = episode_batch['o'][:, 1:, :]
             episode_batch['ag_2'] = episode_batch['ag'][:, 1:, :]
             num_normalizing_transitions = transitions_in_episode_batch(episode_batch)
-            transitions = self.sample_transitions(episode_batch, num_normalizing_transitions)
+            transitions = self.sample_transitions(episode_batch, num_normalizing_transitions, self.buffer.pos_database)
 
             o, o_2, g, ag = transitions['o'], transitions['o_2'], transitions['g'], transitions['ag']
             transitions['o'], transitions['g'] = self._preprocess_og(o, ag, g)
@@ -223,9 +231,11 @@ class DDPG(object):
 
             self.o_stats.update(transitions['o'])
             self.g_stats.update(transitions['g'])
+            self.e_stats.update(transitions['e'])
 
             self.o_stats.recompute_stats()
             self.g_stats.recompute_stats()
+            self.e_stats.recompute_stats()
 
     def get_current_buffer_size(self):
         return self.buffer.get_current_size()
@@ -316,6 +326,10 @@ class DDPG(object):
             if reuse:
                 vs.reuse_variables()
             self.g_stats = Normalizer(self.dimg, self.norm_eps, self.norm_clip, sess=self.sess)
+        with tf.variable_scope('e_stats') as vs:
+            if reuse:
+                vs.reuse_variables()
+            self.e_stats = Normalizer(1, self.norm_eps, self.norm_clip, sess=self.sess)
 
         # mini-batch sampling.
         batch = self.staging_tf.get()
@@ -402,6 +416,8 @@ class DDPG(object):
         logs += [('stats_o/std', np.mean(self.sess.run([self.o_stats.std])))]
         logs += [('stats_g/mean', np.mean(self.sess.run([self.g_stats.mean])))]
         logs += [('stats_g/std', np.mean(self.sess.run([self.g_stats.std])))]
+        logs += [('stats_e/mean', np.mean(self.sess.run([self.e_stats.mean])))]
+        logs += [('stats_e/std', np.mean(self.sess.run([self.e_stats.std])))]
 
         if prefix is not '' and not prefix.endswith('/'):
             return [(prefix + '/' + key, val) for key, val in logs]
