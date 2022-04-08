@@ -234,7 +234,7 @@ def launch(
             import tensorflow as tf
             saver = tf.train.Saver()
         saver.restore(policy.sess, logdir_init)
-        clogger.info("Model was successflly loaded [logidr_tf={}]".format(logdir_init))
+        clogger.info("Model was successfully loaded [logidr_tf={}]".format(logdir_init))
     # ---------------
 
     rollout_params = {
