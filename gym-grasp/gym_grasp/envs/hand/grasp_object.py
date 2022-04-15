@@ -9,6 +9,11 @@ from gym import utils, error
 from gym_grasp.envs import rotations, hand_env
 from gym.envs.robotics.utils import robot_get_obs
 
+from scipy.spatial.transform import Rotation
+from sklearn.metrics import mean_squared_error
+
+from mujoco_py.generated import const
+
 try:
     import mujoco_py
 except ImportError as e:
@@ -24,6 +29,10 @@ def quat_from_angle_and_axis(angle, axis):
     quat /= np.linalg.norm(quat)
     return quat
 
+
+def euler2mat(euler):
+    r = Rotation.from_euler('xyz', euler, degrees=False)
+    return r
 
 # Ensure we get the path separator correct on windows
 GRASP_OBJECT_XML = os.path.join('hand', 'grasp_object.xml')
@@ -165,8 +174,10 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
 
             c_lambda = info['lambda']
             success = self._is_success(achieved_goal, goal).astype(np.float32)  # 成否（1,0）を取得する
+            cpenalty = info["contact_penalty"].T[0]
+            gpenalty = info["is_in_grasp_space"].T[0]
 
-            reward = (success - 1.) - c_lambda * (success * info['e'])
+            reward = (success - 1.) - c_lambda * (success * info['e']) - cpenalty - gpenalty
 
             return reward
 
@@ -226,6 +237,8 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
             else:
                 raise error.Error('Unknown target_rotation option "{}".'.format(self.target_rotation))
 
+        self.sim.data.set_joint_qpos("robot0:rollhinge", 1.57) # self.np_random.uniform(0, 3.14))
+
         # Randomize initial position.
         if self.randomize_initial_position:
             if self.target_position != 'fixed':
@@ -240,6 +253,7 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
         def is_on_palm():
             self.sim.forward()
             cube_middle_idx = self.sim.model.site_name2id('object:center')
+            # cube_middle_idx = self.object
             cube_middle_pos = self.sim.data.site_xpos[cube_middle_idx]
             is_on_palm = (cube_middle_pos[2] > 0.04)
             return is_on_palm
@@ -311,11 +325,17 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
             self.sim.model.geom_rgba[hidden_id, 3] = 1.
         self.sim.forward()
 
+    def _check_contact(self):
+        return 0.1 if np.max(self.sim.data.sensordata[-17:]) > 2.0 else 0.0
+
+    def _get_contact_forces(self):
+        return self.sim.data.sensordata[-17:]
+
     def _get_obs(self):
         robot_qpos, robot_qvel = robot_get_obs(self.sim)
-        object_qvel = self.sim.data.get_joint_qvel(self.object)
+        # object_qvel = self.sim.data.get_joint_qvel(self.object)
         achieved_goal = self._get_achieved_goal().ravel()  # this contains the object position + rotation
-        sensordata = self.sim.data.sensordata[-5:]
+        sensordata = self._get_contact_forces()
         # The self.object_id is an important feature
         # but does only one value in the observation array have a positive effect on RL?
 
@@ -329,6 +349,94 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
             'desired_goal': self.goal.ravel().copy(),
         }
 
+    def _get_grasp_center_space(self, radius=0.07):
+        pospalm = self.sim.data.site_xpos[self.sim.model.site_name2id("robot0:Tch_palm")]
+        rotpalm = Rotation.from_matrix(
+            self.sim.data.site_xmat[self.sim.model.site_name2id("robot0:Tch_palm")].reshape([3, 3]))
+
+        pospalm = pospalm + rotpalm.apply([0, 0, 0.05])
+        rotgrasp = rotpalm * euler2mat([np.pi / 2, 0, 0])
+        posgrasp = pospalm + rotgrasp.apply([0, 0, radius])
+        return posgrasp
+
+    def _is_in_grasp_space(self, radius=0.07):
+        posgrasp = self._get_grasp_center_space(radius=radius)
+        posobject = self.sim.data.site_xpos[self.sim.model.site_name2id("box:center")]
+        return mean_squared_error(posgrasp, posobject, squared=False) < 0.07
+
+    def _display_grasp_space(self):
+        # show a direction for the grasp
+        if self.viewer is not None:
+
+            pospalm = self.sim.data.site_xpos[self.sim.model.site_name2id("robot0:Tch_palm")]
+            rotpalm = Rotation.from_matrix(
+                self.sim.data.site_xmat[self.sim.model.site_name2id("robot0:Tch_palm")].reshape([3, 3]))
+
+            pospalm = pospalm + rotpalm.apply([0, 0, 0.05])
+            rotgrasp = rotpalm * euler2mat([np.pi / 2, 0, 0])
+
+            self.viewer.add_marker(type=const.GEOM_ARROW,
+                                   pos=pospalm,
+                                   label=" ",
+                                   mat=rotgrasp.as_matrix(),
+                                   size=(0.005, 0.005, 0.2),
+                                   rgba=(1, 0, 0, 0.8),
+                                   emission=1)
+
+            posgrasp = pospalm + rotgrasp.apply([0, 0, 0.07])
+
+            self.viewer.add_marker(type=const.GEOM_SPHERE,
+                                   pos=posgrasp,
+                                   label=" ",
+                                   size=(0.07, 0.07, 0.07),
+                                   rgba=(0, 1, 0, 0.2),
+                                   emission=1)
+
+    def _log_contacts(self):
+        for j in range(self.sim.data.ncon):
+            contact = self.sim.data.contact[j]
+            if self.sim.model.geom_id2name(contact.geom2) == 'object' and self.sim.model.geom_id2name(
+                    contact.geom1) is not None:
+                print('contact {} dist {}'.format(j, contact.dist))
+                print('   contact pos ', contact.pos)
+                print('   geom1', contact.geom1, self.sim.model.geom_id2name(contact.geom1))
+                print('   geom2', contact.geom2, self.sim.model.geom_id2name(contact.geom2))
+
+                # There's more stuff in the data structure
+                # See the mujoco documentation for more info!
+                geom2_body = self.sim.model.geom_bodyid[self.sim.data.contact[j].geom2]
+                print('   Contact force on geom2 body', self.sim.data.cfrc_ext[geom2_body])
+                print('   norm', np.sqrt(np.sum(np.square(self.sim.data.cfrc_ext[geom2_body]))))
+                # Use internal functions to read out mj_contactForce
+                c_array = np.zeros(6, dtype=np.float64)
+                mujoco_py.functions.mj_contactForce(self.sim.model, self.sim.data, j,
+                                                    c_array)  # (f, n) f: 作用する力，n: トルク
+                print('   c_array', c_array)
+                # A 6D vector specifying the collision forces/torques[3D force + 3D torque] between the given groups. Vector of 0's in case there was no collision.
+
+    def _display_contacts(self):
+        for j in range(self.sim.data.ncon):
+            contact = self.sim.data.contact[j]
+            if self.sim.model.geom_id2name(contact.geom2) == 'object' and self.sim.model.geom_id2name(
+                    contact.geom1) is not None:
+                # geom2_body = self.sim.model.geom_bodyid[self.sim.data.contact[j].geom2]
+                c_array = np.zeros(6, dtype=np.float64)
+                mujoco_py.functions.mj_contactForce(self.sim.model, self.sim.data, j,
+                                                    c_array)  # (f, n) f: 作用する力，n: トルク
+                # print(rotforce.as_matrix())
+                if self.viewer is not None:
+                    rotgeom1 = Rotation.from_matrix(
+                        self.sim.data.geom_xmat[contact.geom1].reshape([3, 3])) * euler2mat([np.pi / 2, 0, 0])
+                    rotnorm = Rotation.from_matrix(contact.frame.reshape([3, 3]))
+                    # rotforce = Rotation.from_euler("xyz", c_array[:3])
+                    self.viewer.add_marker(type=const.GEOM_ARROW,
+                                           pos=contact.pos,
+                                           label=" ",
+                                           mat=(rotnorm).as_matrix(),
+                                           size=(0.002, 0.002, 1.0 * mean_squared_error(c_array[:3], [0, 0, 0])),
+                                           rgba=(1, 0, 0, 0.8),
+                                           emission=1)
+
     def step(self, action):
         self.step_n += 1
 
@@ -339,22 +447,27 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
         obs = self._get_obs()
 
         done = False
+
         info = {
             'is_success': self._is_success(obs['achieved_goal'], self.goal),
+            "contact_penalty": self._check_contact(),
+            "is_in_grasp_space": 0.0 if self._is_in_grasp_space() else 0.3
         }
         reward = self.compute_reward(obs['achieved_goal'], self.goal, info)
 
-        # print(self.sim.data.contact[7].pos, self.sim.data.contact[7].frame)
-        # print(self.step_n)
-        print(self.sim.data.sensordata[-5:])
-        if self.step_n < 40:
+        if self.step_n < 20:
             self.sim.data.set_joint_qpos(self.object, self.initial_qpos)
+
+        # Options for displaying information
+        # self._display_contacts()
+        # if self._is_in_grasp_space():
+        #     self._display_grasp_space()
 
         return obs, reward, done, info
 
 
 class GraspObjectEnv(ManipulateEnv):
-    def __init__(self, target_position='random', target_rotation='xyz', reward_type="sparse"):
+    def __init__(self, target_position='random', target_rotation='xyz', reward_type="not_sparse"):
         super(GraspObjectEnv, self).__init__(
             model_path=GRASP_OBJECT_XML, target_position=target_position,
             target_rotation=target_rotation,

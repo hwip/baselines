@@ -10,6 +10,8 @@
         <joint name="robot0:yslider" type="slide" pos="0 0 0" axis="0 1 0" range="-0.3 0.3" armature="0.001"
                damping="1"/>
 
+        <joint name="robot0:rollhinge" type="hinge" pos="0 0 0" axis="0 1 0" range="0 3.14" armature="0.001"
+               damping="1"/>
         <body name="robot0:hand mount" pos="0 0 0" euler="1.5708 0 1.5708">
             <inertial mass="0.001" pos="0 0 0" diaginertia="0.001 0.001 0.001"></inertial>
             <body childclass="robot0:asset_class" name="robot0:forearm" pos="0 0.01 0" euler="0 0 0">
@@ -38,7 +40,9 @@
                         <geom class="robot0:DC_Hand" name="robot0:C_palm0" type="box" pos="0.011 0 0.038"
                               size="0.032 0.0111 0.049" rgba="0.4 0.5 0.6 0.1"></geom>
                         <geom class="robot0:DC_Hand" name="robot0:C_palm1" type="box" pos="-0.032 0 0.014"
-                              size="0.011 0.0111 0.025" rgba="0.4 0.5 0.6 0.1"></geom>
+                              size="0.011 0.0111 0.025" rgba="0.4 0.5 0.6 0.1" ></geom>
+                        <site class="robot0:D_Touch" name="robot0:Tch_palm" pos="0.011 0 0.038"
+                              size="0.032 0.0111 0.049"></site>
                         <body name="robot0:ffknuckle" pos="0.033 0 0.095">
                             <inertial pos="0 0 0" quat="0.52 0.854 0.006 -0.003" mass="0.001"
                                       diaginertia="1e-05 1e-05 1e-05"></inertial>
@@ -56,6 +60,8 @@
                                 <geom class="robot0:DC_Hand" name="robot0:C_ffproximal" type="capsule"
                                       pos="0 0 0.0225"
                                       size="0.01 0.0225"></geom>
+                                <site class="robot0:D_Touch" name="robot0:Tch_ffprx"
+                                      pos="0 -0.005 0.0225" size="0.01 0.005 0.017"></site>
                                 <body name="robot0:ffmiddle" pos="0 0 0.045">
                                     <inertial pos="0 0 0.011" quat="0.707 0 0 0.707" mass="0.001"
                                               diaginertia="1e-05 1e-05 1e-05"></inertial>
@@ -66,6 +72,8 @@
                                           mesh="robot0:F2"></geom>
                                     <geom class="robot0:DC_Hand" name="robot0:C_ffmiddle" type="capsule"
                                           pos="0 0 0.0125" size="0.00805 0.0125"></geom>
+                                    <site class="robot0:D_Touch" name="robot0:Tch_ffmdl"
+                                          pos="0 -0.004 0.012" size="0.01 0.005 0.008"></site>
                                     <body name="robot0:ffdistal" pos="0 0 0.025">
                                         <inertial pos="0 0 0.015" quat="0.707 -0.003 0.003 0.707" mass="0.001"
                                                   diaginertia="1e-05 1e-05 1e-05"></inertial>
@@ -99,6 +107,8 @@
                                 <geom class="robot0:DC_Hand" name="robot0:C_mfproximal" type="capsule"
                                       pos="0 0 0.0225"
                                       size="0.01 0.0225"></geom>
+                                <site class="robot0:D_Touch" name="robot0:Tch_mfprx"
+                                      pos="0 -0.005 0.0225" size="0.01 0.005 0.017"></site>
                                 <body name="robot0:mfmiddle" pos="0 0 0.045">
                                     <inertial pos="0 0 0.012" quat="0.707 0 0 0.707" mass="0.001"
                                               diaginertia="1e-05 1e-05 1e-05"></inertial>
@@ -109,6 +119,8 @@
                                           mesh="robot0:F2"></geom>
                                     <geom class="robot0:DC_Hand" name="robot0:C_mfmiddle" type="capsule"
                                           pos="0 0 0.0125" size="0.00805 0.0125"></geom>
+                                    <site class="robot0:D_Touch" name="robot0:Tch_mfmdl"
+                                          pos="0 -0.004 0.012" size="0.01 0.005 0.008"></site>
                                     <body name="robot0:mfdistal" pos="0 0 0.025">
                                         <inertial pos="0 0 0.015" quat="0.707 -0.003 0.003 0.707" mass="0.001"
                                                   diaginertia="1e-05 1e-05 1e-05"></inertial>
@@ -142,6 +154,8 @@
                                 <geom class="robot0:DC_Hand" name="robot0:C_rfproximal" type="capsule"
                                       pos="0 0 0.0225"
                                       size="0.01 0.0225"></geom>
+                                <site class="robot0:D_Touch" name="robot0:Tch_rfprx"
+                                      pos="0 -0.005 0.0225" size="0.01 0.005 0.017"></site>
                                 <body name="robot0:rfmiddle" pos="0 0 0.045">
                                     <inertial pos="0 0 0.012" quat="0.707 0 0 0.707" mass="0.001"
                                               diaginertia="1e-05 1e-05 1e-05"></inertial>
@@ -152,6 +166,8 @@
                                           mesh="robot0:F2"></geom>
                                     <geom class="robot0:DC_Hand" name="robot0:C_rfmiddle" type="capsule"
                                           pos="0 0 0.0125" size="0.00805 0.0125"></geom>
+                                    <site class="robot0:D_Touch" name="robot0:Tch_rfmdl"
+                                          pos="0 -0.004 0.012" size="0.01 0.005 0.008"></site>
                                     <body name="robot0:rfdistal" pos="0 0 0.025">
                                         <inertial pos="0 0 0.015" quat="0.707 -0.003 0.003 0.707" mass="0.001"
                                                   diaginertia="1e-05 1e-05 1e-05"></inertial>
@@ -179,6 +195,8 @@
                             <geom class="robot0:DC_Hand" name="robot0:C_lfmetacarpal" type="box"
                                   pos="-0.0165 0 0.01"
                                   size="0.0095 0.0111 0.025" rgba="0.4 0.5 0.6 0.2"></geom>
+                            <site class="robot0:D_Touch" name="robot0:Tch_lfknl" pos="-0.0165 0 0.01"
+                                  size="0.0095 0.0111 0.025"></site>
                             <body name="robot0:lfknuckle" pos="-0.017 0 0.044">
                                 <inertial pos="0 0 0" quat="0.52 0.854 0.006 -0.003" mass="0.001"
                                           diaginertia="1e-05 1e-05 1e-05"></inertial>
@@ -197,6 +215,8 @@
                                           mesh="robot0:F3"></geom>
                                     <geom class="robot0:DC_Hand" name="robot0:C_lfproximal" type="capsule"
                                           pos="0 0 0.0225" size="0.01 0.0225"></geom>
+                                    <site class="robot0:D_Touch" name="robot0:Tch_lfprx"
+                                          pos="0 -0.005 0.0225" size="0.01 0.005 0.017"></site>
                                     <body name="robot0:lfmiddle" pos="0 0 0.045">
                                         <inertial pos="0 0 0.012" quat="0.707 0 0 0.707" mass="0.001"
                                                   diaginertia="1e-05 1e-05 1e-05"></inertial>
@@ -207,6 +227,8 @@
                                               mesh="robot0:F2"></geom>
                                         <geom class="robot0:DC_Hand" name="robot0:C_lfmiddle" type="capsule"
                                               pos="0 0 0.0125" size="0.00805 0.0125"></geom>
+                                        <site class="robot0:D_Touch" name="robot0:Tch_lfmdl"
+                                              pos="0 -0.004 0.012" size="0.01 0.005 0.008"></site>
                                         <body name="robot0:lfdistal" pos="0 0 0.025">
                                             <inertial pos="0 0 0.015" quat="0.707 -0.003 0.003 0.707"
                                                       mass="0.001"
@@ -242,6 +264,9 @@
                                 <geom class="robot0:DC_Hand" name="robot0:C_thproximal" type="capsule"
                                       pos="0 0 0.019"
                                       size="0.013 0.019" rgba="0.4 0.5 0.6 0.1"></geom>
+                                <site class="robot0:D_Touch" name="robot0:Tch_thprx" type="capsule"
+                                      pos="0 0 0.019"
+                                      size="0.013 0.01"></site>
                                 <body name="robot0:thhub" pos="0 0 0.038">
                                     <inertial pos="0 0 0" mass="0.001"
                                               diaginertia="1e-05 1e-05 1e-05"></inertial>
@@ -259,6 +284,8 @@
                                               mesh="robot0:TH2_z"></geom>
                                         <geom class="robot0:DC_Hand" name="robot0:C_thmiddle" type="capsule"
                                               pos="0 0 0.016" size="0.011 0.016"></geom>
+                                        <site class="robot0:D_Touch" name="robot0:Tch_thmdl" type="capsule"
+                                              pos="0 0 0.016" size="0.011 0.01"></site>
                                         <body name="robot0:thdistal" pos="0 0 0.032">
                                             <inertial pos="0 0 0.016" quat="0.999 -0.005 -0.047 0.005"
                                                       mass="0.001"
