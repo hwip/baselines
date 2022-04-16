@@ -288,7 +288,7 @@ def launch(
               help='the path to where logs and policy pickles should go. If not specified, creates a folder in /tmp/')
 @click.option('--n_epochs', type=int, default=50,
               help='the number of training epochs to run')
-@click.option('--min_num', type=int, default=500,
+@click.option('--min_num', type=int, default=50,
               help='minimum number of success_u whether to run PCA')
 @click.option('--max_num', type=int, default=2000,
               help='limit of success_u for PCA')

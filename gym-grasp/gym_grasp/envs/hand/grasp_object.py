@@ -359,10 +359,10 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
         posgrasp = pospalm + rotgrasp.apply([0, 0, radius])
         return posgrasp
 
-    def _is_in_grasp_space(self, radius=0.07):
+    def _is_in_grasp_space(self, radius=0.05):
         posgrasp = self._get_grasp_center_space(radius=radius)
         posobject = self.sim.data.site_xpos[self.sim.model.site_name2id("box:center")]
-        return mean_squared_error(posgrasp, posobject, squared=False) < 0.07
+        return mean_squared_error(posgrasp, posobject, squared=False) < 0.05
 
     def _display_grasp_space(self):
         # show a direction for the grasp
