@@ -179,7 +179,7 @@ class RolloutWorker:
                             if success[i] > 0 and t > self.T*0.95:
                                 pos_database.add_pos(pos)
 
-                        o_new[i] = curr_o_new['observation']
+                    o_new[i] = curr_o_new['observation']
                     ag_new[i] = curr_o_new['achieved_goal']
                     for idx, key in enumerate(self.info_keys):
                         info_values[idx][t, i] = info[key]
@@ -261,7 +261,7 @@ class RolloutWorker:
         with open(path, 'wb') as f:
             pickle.dump(self.policy, f)
 
-    def logs(self, prefix='worker', variance_ratio=[], num_axis=0, grasp_pose=[]):
+    def logs(self, prefix='worker', variance_ratio=[], num_axis=0, grasp_pose=[], rewards=[]):
         """Generates a dictionary that contains all collected statistics.
         """
         logs = []
@@ -278,9 +278,9 @@ class RolloutWorker:
             for i in range(num_axis):
                 logs += [('pc_{}'.format(i+1), 0.0)]
 
-
-
-        logs += [('num_grasp', len(grasp_pose))] 
+        if len(rewards) > 0:
+            logs += [("rewards", np.mean(rewards))]
+        logs += [('num_grasp', len(grasp_pose))]
 
         if prefix is not '' and not prefix.endswith('/'):
             return [(prefix + '/' + key, val) for key, val in logs]

@@ -277,20 +277,22 @@ class DDPG(object):
         transitions['o_2'], transitions['g_2'] = self._preprocess_og(o_2, ag_2, g)
 
         transitions_batch = [transitions[key] for key in self.stage_shapes.keys()]
-        return transitions_batch
+        reward = transitions['r']
+        return transitions_batch, reward
 
     def stage_batch(self, batch=None):
         if batch is None:
-            batch = self.sample_batch()
+            batch, rewards = self.sample_batch()
         assert len(self.buffer_ph_tf) == len(batch)
         self.sess.run(self.stage_op, feed_dict=dict(zip(self.buffer_ph_tf, batch)))
+        return sum(rewards)
 
     def train(self, stage=True):
         if stage:
-            self.stage_batch()
+            rewards = self.stage_batch()
         critic_loss, actor_loss, Q_grad, pi_grad = self._grads()
         self._update(Q_grad, pi_grad)
-        return critic_loss, actor_loss
+        return critic_loss, actor_loss, rewards
 
     def _init_target_net(self):
         self.sess.run(self.init_target_net_op)

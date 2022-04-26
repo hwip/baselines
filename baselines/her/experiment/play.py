@@ -55,7 +55,7 @@ def main(policy_file, seed, n_test_rollouts, render, min_num=10, num_axis=3, rew
     evaluator = RolloutWorker(params['make_env'], policy, dims, logger, **eval_params)
     evaluator.seed(seed)
 
-    pos_database = PosDatabase(reward_lambda=0, num_axis=num_axis, init_poslist=[])
+    pos_database = PosDatabase(reward_lambda=0, num_axis=num_axis, init_poslist=[], maxn_pos=200)
 
     # Run evaluation.
     evaluator.clear_history()
