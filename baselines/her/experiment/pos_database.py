@@ -2,10 +2,11 @@ from sklearn.decomposition import PCA
 
 
 class PosDatabase:
-    def __init__(self, reward_lambda, num_axis, init_poslist):
+    def __init__(self, reward_lambda, num_axis, init_poslist, maxn_pos):
         self.poslist = init_poslist
         self.reward_lambda = reward_lambda
         self.num_axis = num_axis
+        self.maxn_pos = maxn_pos
 
         self.pca = PCA(self.num_axis)
 
@@ -22,7 +23,12 @@ class PosDatabase:
         self.poslist = poslist
 
     def get_poslist(self):
+        if len(self.poslist) > self.maxn_pos:
+            self._pop_pos()
         return self.poslist
+
+    def _pop_pos(self):
+        return self.poslist.pop(0)
 
     def calc_pca(self):
         self.pca.fit(self.poslist)

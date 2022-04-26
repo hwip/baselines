@@ -158,7 +158,7 @@ class RolloutWorker:
                         pos = u[i][0:20]
                     elif synergy_type == 'joint':
                         # only joints of fingers, except joints of the wrist and the vertical slider.
-                        pos = curr_o_new['observation'][3:25]
+                        pos = curr_o_new['observation'][5:27]
 
                     if 'is_success' in info:
                         success[i] = info['is_success']
@@ -179,7 +179,7 @@ class RolloutWorker:
                             if success[i] > 0 and t > self.T*0.95:
                                 pos_database.add_pos(pos)
 
-                        o_new[i] = curr_o_new['observation']
+                    o_new[i] = curr_o_new['observation']
                     ag_new[i] = curr_o_new['achieved_goal']
                     for idx, key in enumerate(self.info_keys):
                         info_values[idx][t, i] = info[key]
@@ -210,7 +210,7 @@ class RolloutWorker:
         if synergy_type == 'actuator':
             poss = np.array(acts)[:, :, 0:20]
         elif synergy_type == 'joint':
-            poss = np.array(obs)[:, :, 3:25]
+            poss = np.array(obs)[:, :, 5:27]
 
         if is_train:
             episode = dict(o=obs,
@@ -261,7 +261,7 @@ class RolloutWorker:
         with open(path, 'wb') as f:
             pickle.dump(self.policy, f)
 
-    def logs(self, prefix='worker', variance_ratio=[], num_axis=0, grasp_pose=[]):
+    def logs(self, prefix='worker', variance_ratio=[], num_axis=0, grasp_pose=[], rewards=[]):
         """Generates a dictionary that contains all collected statistics.
         """
         logs = []
@@ -278,9 +278,9 @@ class RolloutWorker:
             for i in range(num_axis):
                 logs += [('pc_{}'.format(i+1), 0.0)]
 
-
-
-        logs += [('num_grasp', len(grasp_pose))] 
+        if len(rewards) > 0:
+            logs += [("rewards", np.mean(rewards))]
+        logs += [('num_grasp', len(grasp_pose))]
 
         if prefix is not '' and not prefix.endswith('/'):
             return [(prefix + '/' + key, val) for key, val in logs]

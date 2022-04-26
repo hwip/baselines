@@ -63,7 +63,7 @@ def train(min_num, max_num, num_axis, reward_lambda, # nishimura
 
     # motoda --
     policy.reward_lambda = reward_lambda
-    pos_database = PosDatabase(reward_lambda, num_axis, poslist)
+    pos_database = PosDatabase(reward_lambda, num_axis, poslist, 200)
     policy.buffer.set_pos_database(pos_database)
 
     logger.info("Training...")
@@ -74,6 +74,7 @@ def train(min_num, max_num, num_axis, reward_lambda, # nishimura
         clogger.info("Start: Epoch {}/{}".format(epoch, n_epochs))
         # train
         rollout_worker.clear_history()
+        rewards = []
         for _ in range(n_cycles):
             policy.is_pca_fit = False
 
@@ -92,9 +93,9 @@ def train(min_num, max_num, num_axis, reward_lambda, # nishimura
             policy.store_episode(episode)
 
             for _ in range(n_batches):
-                policy.train()
+                _, _, reward = policy.train()
+                rewards.append(reward)
             policy.update_target_net()
-
         # test
         evaluator.clear_history()
         for _ in range(n_test_rollouts):
@@ -109,10 +110,12 @@ def train(min_num, max_num, num_axis, reward_lambda, # nishimura
             pos_database.calc_pca()  # PCAの計算
             variance_ratio = pos_database.get_variance_ratio()
             for key, val in rollout_worker.logs('train', variance_ratio=variance_ratio,
-                                                num_axis=num_axis, grasp_pose=pos_database.get_poslist()):
+                                                num_axis=num_axis, grasp_pose=pos_database.get_poslist(),
+                                                rewards=rewards):
                 logger.record_tabular(key, mpi_average(val))
         else:
-            for key, val in rollout_worker.logs('train', num_axis=num_axis, grasp_pose=pos_database.get_poslist()):
+            for key, val in rollout_worker.logs('train', num_axis=num_axis, grasp_pose=pos_database.get_poslist(),
+                                                rewards=rewards):
                     logger.record_tabular(key, mpi_average(val))
         for key, val in policy.logs():
             logger.record_tabular(key, mpi_average(val))
@@ -234,7 +237,7 @@ def launch(
             import tensorflow as tf
             saver = tf.train.Saver()
         saver.restore(policy.sess, logdir_init)
-        clogger.info("Model was successflly loaded [logidr_tf={}]".format(logdir_init))
+        clogger.info("Model was successfully loaded [logidr_tf={}]".format(logdir_init))
     # ---------------
 
     rollout_params = {
@@ -288,7 +291,7 @@ def launch(
               help='the path to where logs and policy pickles should go. If not specified, creates a folder in /tmp/')
 @click.option('--n_epochs', type=int, default=50,
               help='the number of training epochs to run')
-@click.option('--min_num', type=int, default=20,
+@click.option('--min_num', type=int, default=50,
               help='minimum number of success_u whether to run PCA')
 @click.option('--max_num', type=int, default=2000,
               help='limit of success_u for PCA')

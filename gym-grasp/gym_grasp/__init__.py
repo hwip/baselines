@@ -10,3 +10,8 @@ register(
     entry_point='gym_grasp.envs:GraspBlockEnv',
     max_episode_steps=100,
 )
+register(
+    id='GraspObject-v0',
+    entry_point='gym_grasp.envs:GraspObjectEnv',
+    max_episode_steps=100,
+)
