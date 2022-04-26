@@ -161,34 +161,32 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
 
     def compute_reward(self, achieved_goal, goal, info):
         if self.reward_type == 'sparse':
-            success = self._is_success(achieved_goal, goal).astype(np.float32)
+            gpenalty = info["is_in_grasp_space"].T[0]
+            success = self._is_success(achieved_goal, goal, gpenalty).astype(np.float32)
             return success - 1.
         else:
-            # d_pos, d_rot = self._goal_distance(achieved_goal, goal)
-            # We weigh the difference in position to avoid that `d_pos` (in meters) is completely
-            # dominated by `d_rot` (in radians).
-
             # Train時のみ処理されるように
             if 'u' not in info:
                 return
 
             c_lambda = info['lambda']
-            success = self._is_success(achieved_goal, goal).astype(np.float32)  # 成否（1,0）を取得する
-            cpenalty = info["contact_penalty"].T[0]
             gpenalty = info["is_in_grasp_space"].T[0]
+            success = self._is_success(achieved_goal, goal, gpenalty).astype(np.float32)  # 成否（1,0）を取得する
+            cpenalty = info["contact_penalty"].T[0]
+            success = success * gpenalty
 
-            reward = (success - 1.) - c_lambda * (success * info['e']) - cpenalty - gpenalty
+            reward = (success - 1.) - c_lambda * (success * info['e']) - cpenalty  # - gpenalty
 
             return reward
 
     # RobotEnv methods
     # ----------------------------
 
-    def _is_success(self, achieved_goal, desired_goal):
+    def _is_success(self, achieved_goal, desired_goal, isingrasp):
         d_pos, d_rot = self._goal_distance(achieved_goal, desired_goal)
         achieved_pos = (d_pos < self.distance_threshold).astype(np.float32)
         achieved_rot = (d_rot < self.rotation_threshold).astype(np.float32)
-        achieved_both = achieved_pos * achieved_rot
+        achieved_both = achieved_pos * achieved_rot * isingrasp
         return achieved_both
 
     def _env_setup(self, initial_qpos):
@@ -260,7 +258,7 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
 
         # Run the simulation for a bunch of timesteps to let everything settle in.
         for _ in range(10):
-            self._set_action(np.zeros(23))
+            self._set_action(np.zeros(21))
             try:
                 self.sim.step()
             except mujoco_py.MujocoException:
@@ -326,20 +324,18 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
         self.sim.forward()
 
     def _check_contact(self):
-        return 0.1 if np.max(self.sim.data.sensordata[-17:]) > 2.0 else 0.0
+        return 0.1 if np.max(self.sim.data.sensordata[-17:]) > 1.5 else 0.0
 
     def _get_contact_forces(self):
         return self.sim.data.sensordata[-17:]
 
     def _get_obs(self):
         robot_qpos, robot_qvel = robot_get_obs(self.sim)
-        # object_qvel = self.sim.data.get_joint_qvel(self.object)
+        object_qvel = self.sim.data.get_joint_qvel(self.object)
         achieved_goal = self._get_achieved_goal().ravel()  # this contains the object position + rotation
         sensordata = self._get_contact_forces()
-        # The self.object_id is an important feature
-        # but does only one value in the observation array have a positive effect on RL?
 
-        observation = np.concatenate([robot_qpos, achieved_goal, sensordata])
+        observation = np.concatenate([robot_qpos, robot_qvel, object_qvel, achieved_goal, sensordata])
         # observation = np.concatenate([robot_qpos, robot_qvel, object_qvel, achieved_goal, [self.target_id]])
         # observation = np.concatenate([robot_qpos, robot_qvel, object_qvel, achieved_goal]) # temp
 
@@ -383,12 +379,12 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
                                    rgba=(1, 0, 0, 0.8),
                                    emission=1)
 
-            posgrasp = pospalm + rotgrasp.apply([0, 0, 0.07])
+            posgrasp = pospalm + rotgrasp.apply([0, 0, 0.05])
 
             self.viewer.add_marker(type=const.GEOM_SPHERE,
                                    pos=posgrasp,
                                    label=" ",
-                                   size=(0.07, 0.07, 0.07),
+                                   size=(0.05, 0.05, 0.05),
                                    rgba=(0, 1, 0, 0.2),
                                    emission=1)
 
@@ -449,9 +445,9 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
         done = False
 
         info = {
-            'is_success': self._is_success(obs['achieved_goal'], self.goal),
+            'is_success': self._is_success(obs['achieved_goal'], self.goal, 1.0 if self._is_in_grasp_space() else 0.0),
             "contact_penalty": self._check_contact(),
-            "is_in_grasp_space": 0.0 if self._is_in_grasp_space() else 0.3
+            "is_in_grasp_space": 1.0 if self._is_in_grasp_space() else 0.0
         }
         reward = self.compute_reward(obs['achieved_goal'], self.goal, info)
 

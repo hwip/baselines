@@ -5,10 +5,10 @@
         <geom name="vertical slider" type="box" size="0.01 0.010 0.01"></geom>
         <joint name="robot0:zslider" type="slide" pos="0 0 0" axis="0 0 1" range="-0.6 0.6" armature="0.001"
                damping="1"/>
-        <joint name="robot0:xslider" type="slide" pos="0 0 0" axis="1 0 0" range="-0.3 0.3" armature="0.001"
-               damping="1"/>
-        <joint name="robot0:yslider" type="slide" pos="0 0 0" axis="0 1 0" range="-0.3 0.3" armature="0.001"
-               damping="1"/>
+<!--        <joint name="robot0:xslider" type="slide" pos="0 0 0" axis="1 0 0" range="-0.3 0.3" armature="0.001"-->
+<!--               damping="1"/>-->
+<!--        <joint name="robot0:yslider" type="slide" pos="0 0 0" axis="0 1 0" range="-0.3 0.3" armature="0.001"-->
+<!--               damping="1"/>-->
 
         <joint name="robot0:rollhinge" type="hinge" pos="0 0 0" axis="0 1 0" range="0 3.14" armature="0.001"
                damping="1"/>

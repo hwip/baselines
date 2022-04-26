@@ -13,14 +13,14 @@ class HandEnv(robot_env.RobotEnv):
         self.relative_control = relative_control
 
         super(HandEnv, self).__init__(
-            model_path=model_path, n_substeps=n_substeps, n_actions=23,
+            model_path=model_path, n_substeps=n_substeps, n_actions=21,
             initial_qpos=initial_qpos)
 
     # RobotEnv methods
     # ----------------------------
 
     def _set_action(self, action):
-        assert action.shape == (23,)
+        assert action.shape == (21,)
 
         ctrlrange = self.sim.model.actuator_ctrlrange
         actuation_range = (ctrlrange[:, 1] - ctrlrange[:, 0]) / 2.
