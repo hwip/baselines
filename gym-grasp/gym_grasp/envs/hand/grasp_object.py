@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import random
+
 random.seed()
 
 from gym import utils, error
@@ -8,12 +9,17 @@ from gym import utils, error
 from gym_grasp.envs import rotations, hand_env
 from gym.envs.robotics.utils import robot_get_obs
 
-import baselines.her.experiment.pos_database as su # motoda
+from scipy.spatial.transform import Rotation
+from sklearn.metrics import mean_squared_error
+
+from mujoco_py.generated import const
 
 try:
     import mujoco_py
 except ImportError as e:
-    raise error.DependencyNotInstalled("{}. (HINT: you need to install mujoco_py, and also perform the setup instructions here: https://github.com/openai/mujoco-py/.)".format(e))
+    raise error.DependencyNotInstalled(
+        "{}. (HINT: you need to install mujoco_py, and also perform the setup instructions here: https://github.com/openai/mujoco-py/.)".format(
+            e))
 
 
 def quat_from_angle_and_axis(angle, axis):
@@ -24,21 +30,22 @@ def quat_from_angle_and_axis(angle, axis):
     return quat
 
 
+def euler2mat(euler):
+    r = Rotation.from_euler('xyz', euler, degrees=False)
+    return r
+
 # Ensure we get the path separator correct on windows
-MANIPULATE_BLOCK_XML = os.path.join('hand', 'manipulate_block.xml')
-MANIPULATE_EGG_XML = os.path.join('hand', 'manipulate_egg.xml')
-MANIPULATE_PEN_XML = os.path.join('hand', 'manipulate_pen.xml')
-GRASP_BLOCK_XML = os.path.join('hand', 'grasp_block.xml')
+GRASP_OBJECT_XML = os.path.join('hand', 'grasp_object.xml')
 
 
 class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
     def __init__(
-        self, model_path, target_position, target_rotation,
-        target_position_range, reward_type, initial_qpos={},
-        randomize_initial_position=True, randomize_initial_rotation=True, randomize_object=True,
-        distance_threshold=0.01, rotation_threshold=0.1, n_substeps=20, relative_control=False,
-        ignore_z_target_rotation=False, 
-        target_id = 0, num_axis = 5, reward_lambda=0.5
+            self, model_path, target_position, target_rotation,
+            target_position_range, reward_type, initial_qpos={},
+            randomize_initial_position=True, randomize_initial_rotation=True, randomize_object=True,
+            distance_threshold=0.01, rotation_threshold=0.1, n_substeps=20, relative_control=False,
+            ignore_z_target_rotation=False,
+            target_id=0, num_axis=5, reward_lambda=0.5
     ):
         """Initializes a new Hand manipulation environment.
 
@@ -83,16 +90,17 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
         self.object_list = ["box:joint", "apple:joint", "banana:joint", "beerbottle:joint", "book:joint",
                             "needle:joint", "pen:joint", "teacup:joint"]
         self.target_id = target_id
-        self.num_axis = num_axis # the number of components
-        self.randomize_object = randomize_object # random target (boolean)
-        self.reward_lambda = reward_lambda # a weight for the second term of the reward function (float)
+        self.num_axis = num_axis  # the number of components
+        self.randomize_object = randomize_object  # random target (boolean)
+        self.reward_lambda = reward_lambda  # a weight for the second term of the reward function (float)
 
         if self.randomize_object == True:
-            self.object = self.object_list[random.randrange(0, 8, 1)] # in case of randomly selected target
+            self.object = self.object_list[random.randrange(0, 8, 1)]  # in case of randomly selected target
         else:
-            self.object = self.object_list[self.target_id] # target
+            self.object = self.object_list[self.target_id]  # target
 
-        self.init_object_qpos = np.array([1, 0.87, 0.2, 1, 0, 0, 0])
+        self.step_n = 0
+        self.init_object_qpos = np.array([1, 0.87, 0.4, 1, 0, 0, 0])
 
         assert self.target_position in ['ignore', 'fixed', 'random']
         assert self.target_rotation in ['ignore', 'fixed', 'xyz', 'z', 'parallel']
@@ -103,8 +111,8 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
         utils.EzPickle.__init__(self)
 
     def set_initial_param(self, _reward_lambda, _num_axis, _target_id, _randomize_object):
-        self.reward_lambda = _reward_lambda # a weight for the second term of the reward function (float)
-        self.num_axis = _num_axis # the number of components
+        self.reward_lambda = _reward_lambda  # a weight for the second term of the reward function (float)
+        self.num_axis = _num_axis  # the number of components
         self.target_id = _target_id
         self.randomize_object = _randomize_object
 
@@ -153,32 +161,32 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
 
     def compute_reward(self, achieved_goal, goal, info):
         if self.reward_type == 'sparse':
-            success = self._is_success(achieved_goal, goal).astype(np.float32)
-            return (success - 1.)
+            gpenalty = info["is_in_grasp_space"].T[0]
+            success = self._is_success(achieved_goal, goal, gpenalty).astype(np.float32)
+            return success - 1.
         else:
-            # d_pos, d_rot = self._goal_distance(achieved_goal, goal)
-            # We weigh the difference in position to avoid that `d_pos` (in meters) is completely
-            # dominated by `d_rot` (in radians).
-
             # Train時のみ処理されるように
-            if not 'u' in info:
+            if 'u' not in info:
                 return
 
             c_lambda = info['lambda']
-            success = self._is_success(achieved_goal, goal).astype(np.float32) # 成否（1,0）を取得する
-            
-            reward = (success-1.) - c_lambda * (success*info['e'])
+            gpenalty = info["is_in_grasp_space"].T[0]
+            success = self._is_success(achieved_goal, goal, gpenalty).astype(np.float32)  # 成否（1,0）を取得する
+            cpenalty = info["contact_penalty"].T[0]
+            success = success * gpenalty
+
+            reward = (success - 1.) - c_lambda * (success * info['e']) - cpenalty  # - gpenalty
 
             return reward
 
     # RobotEnv methods
     # ----------------------------
 
-    def _is_success(self, achieved_goal, desired_goal):
+    def _is_success(self, achieved_goal, desired_goal, isingrasp):
         d_pos, d_rot = self._goal_distance(achieved_goal, desired_goal)
         achieved_pos = (d_pos < self.distance_threshold).astype(np.float32)
         achieved_rot = (d_rot < self.rotation_threshold).astype(np.float32)
-        achieved_both = achieved_pos * achieved_rot
+        achieved_both = achieved_pos * achieved_rot * isingrasp
         return achieved_both
 
     def _env_setup(self, initial_qpos):
@@ -192,9 +200,9 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
 
         # -- motoda
         if self.randomize_object == True:
-            self.object = self.object_list[random.randrange(0, 8, 1)] # in case of randomly selected target
+            self.object = self.object_list[random.randrange(0, 8, 1)]  # in case of randomly selected target
         else:
-            self.object = self.object_list[self.target_id] # target
+            self.object = self.object_list[self.target_id]  # target
         # --
         initial_qpos = self.init_object_qpos
         initial_pos, initial_quat = initial_qpos[:3], initial_qpos[3:]
@@ -227,6 +235,8 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
             else:
                 raise error.Error('Unknown target_rotation option "{}".'.format(self.target_rotation))
 
+        self.sim.data.set_joint_qpos("robot0:rollhinge", 1.57) # self.np_random.uniform(0, 3.14))
+
         # Randomize initial position.
         if self.randomize_initial_position:
             if self.target_position != 'fixed':
@@ -234,18 +244,21 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
 
         initial_quat /= np.linalg.norm(initial_quat)
         initial_qpos = np.concatenate([initial_pos, initial_quat])
+        self.initial_qpos = initial_qpos
         self.sim.data.set_joint_qpos(self.object, initial_qpos)
+        self.step_n = 0
 
         def is_on_palm():
             self.sim.forward()
             cube_middle_idx = self.sim.model.site_name2id('object:center')
+            # cube_middle_idx = self.object
             cube_middle_pos = self.sim.data.site_xpos[cube_middle_idx]
             is_on_palm = (cube_middle_pos[2] > 0.04)
             return is_on_palm
 
         # Run the simulation for a bunch of timesteps to let everything settle in.
         for _ in range(10):
-            self._set_action(np.zeros(23))
+            self._set_action(np.zeros(21))
             try:
                 self.sim.step()
             except mujoco_py.MujocoException:
@@ -310,13 +323,20 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
             self.sim.model.geom_rgba[hidden_id, 3] = 1.
         self.sim.forward()
 
+    def _check_contact(self):
+        return 0.1 if np.max(self.sim.data.sensordata[-17:]) > 1.5 else 0.0
+
+    def _get_contact_forces(self):
+        return self.sim.data.sensordata[-17:]
+
     def _get_obs(self):
         robot_qpos, robot_qvel = robot_get_obs(self.sim)
         object_qvel = self.sim.data.get_joint_qvel(self.object)
         achieved_goal = self._get_achieved_goal().ravel()  # this contains the object position + rotation
-        # The self.object_id is an important feature
-        # but does only one value in the observation array have a positive effect on RL?
-        observation = np.concatenate([robot_qpos, robot_qvel, object_qvel, achieved_goal, [self.target_id]])
+        sensordata = self._get_contact_forces()
+
+        observation = np.concatenate([robot_qpos, robot_qvel, object_qvel, achieved_goal, sensordata])
+        # observation = np.concatenate([robot_qpos, robot_qvel, object_qvel, achieved_goal, [self.target_id]])
         # observation = np.concatenate([robot_qpos, robot_qvel, object_qvel, achieved_goal]) # temp
 
         return {
@@ -325,46 +345,136 @@ class ManipulateEnv(hand_env.HandEnv, utils.EzPickle):
             'desired_goal': self.goal.ravel().copy(),
         }
 
+    def _get_grasp_center_space(self, radius=0.07):
+        pospalm = self.sim.data.site_xpos[self.sim.model.site_name2id("robot0:Tch_palm")]
+        rotpalm = Rotation.from_matrix(
+            self.sim.data.site_xmat[self.sim.model.site_name2id("robot0:Tch_palm")].reshape([3, 3]))
 
-class HandBlockEnv(ManipulateEnv):
-    def __init__(self, target_position='random', target_rotation='xyz', reward_type='sparse'):
-        super(HandBlockEnv, self).__init__(
-            model_path=MANIPULATE_BLOCK_XML, target_position=target_position,
-            target_rotation=target_rotation,
-            target_position_range=np.array([(-0.04, 0.04), (-0.06, 0.02), (0.0, 0.06)]),
-            reward_type=reward_type)
+        pospalm = pospalm + rotpalm.apply([0, 0, 0.05])
+        rotgrasp = rotpalm * euler2mat([np.pi / 2, 0, 0])
+        posgrasp = pospalm + rotgrasp.apply([0, 0, radius])
+        return posgrasp
+
+    def _is_in_grasp_space(self, radius=0.05):
+        posgrasp = self._get_grasp_center_space(radius=radius)
+        posobject = self.sim.data.site_xpos[self.sim.model.site_name2id("box:center")]
+        return mean_squared_error(posgrasp, posobject, squared=False) < 0.05
+
+    def _display_grasp_space(self):
+        # show a direction for the grasp
+        if self.viewer is not None:
+
+            pospalm = self.sim.data.site_xpos[self.sim.model.site_name2id("robot0:Tch_palm")]
+            rotpalm = Rotation.from_matrix(
+                self.sim.data.site_xmat[self.sim.model.site_name2id("robot0:Tch_palm")].reshape([3, 3]))
+
+            pospalm = pospalm + rotpalm.apply([0, 0, 0.05])
+            rotgrasp = rotpalm * euler2mat([np.pi / 2, 0, 0])
+
+            self.viewer.add_marker(type=const.GEOM_ARROW,
+                                   pos=pospalm,
+                                   label=" ",
+                                   mat=rotgrasp.as_matrix(),
+                                   size=(0.005, 0.005, 0.2),
+                                   rgba=(1, 0, 0, 0.8),
+                                   emission=1)
+
+            posgrasp = pospalm + rotgrasp.apply([0, 0, 0.05])
+
+            self.viewer.add_marker(type=const.GEOM_SPHERE,
+                                   pos=posgrasp,
+                                   label=" ",
+                                   size=(0.05, 0.05, 0.05),
+                                   rgba=(0, 1, 0, 0.2),
+                                   emission=1)
+
+    def _log_contacts(self):
+        for j in range(self.sim.data.ncon):
+            contact = self.sim.data.contact[j]
+            if self.sim.model.geom_id2name(contact.geom2) == 'object' and self.sim.model.geom_id2name(
+                    contact.geom1) is not None:
+                print('contact {} dist {}'.format(j, contact.dist))
+                print('   contact pos ', contact.pos)
+                print('   geom1', contact.geom1, self.sim.model.geom_id2name(contact.geom1))
+                print('   geom2', contact.geom2, self.sim.model.geom_id2name(contact.geom2))
+
+                # There's more stuff in the data structure
+                # See the mujoco documentation for more info!
+                geom2_body = self.sim.model.geom_bodyid[self.sim.data.contact[j].geom2]
+                print('   Contact force on geom2 body', self.sim.data.cfrc_ext[geom2_body])
+                print('   norm', np.sqrt(np.sum(np.square(self.sim.data.cfrc_ext[geom2_body]))))
+                # Use internal functions to read out mj_contactForce
+                c_array = np.zeros(6, dtype=np.float64)
+                mujoco_py.functions.mj_contactForce(self.sim.model, self.sim.data, j,
+                                                    c_array)  # (f, n) f: 作用する力，n: トルク
+                print('   c_array', c_array)
+                # A 6D vector specifying the collision forces/torques[3D force + 3D torque] between the given groups. Vector of 0's in case there was no collision.
+
+    def _display_contacts(self):
+        for j in range(self.sim.data.ncon):
+            contact = self.sim.data.contact[j]
+            if self.sim.model.geom_id2name(contact.geom2) == 'object' and self.sim.model.geom_id2name(
+                    contact.geom1) is not None:
+                # geom2_body = self.sim.model.geom_bodyid[self.sim.data.contact[j].geom2]
+                c_array = np.zeros(6, dtype=np.float64)
+                mujoco_py.functions.mj_contactForce(self.sim.model, self.sim.data, j,
+                                                    c_array)  # (f, n) f: 作用する力，n: トルク
+                # print(rotforce.as_matrix())
+                if self.viewer is not None:
+                    rotgeom1 = Rotation.from_matrix(
+                        self.sim.data.geom_xmat[contact.geom1].reshape([3, 3])) * euler2mat([np.pi / 2, 0, 0])
+                    rotnorm = Rotation.from_matrix(contact.frame.reshape([3, 3]))
+                    # rotforce = Rotation.from_euler("xyz", c_array[:3])
+                    self.viewer.add_marker(type=const.GEOM_ARROW,
+                                           pos=contact.pos,
+                                           label=" ",
+                                           mat=(rotnorm).as_matrix(),
+                                           size=(0.002, 0.002, 1.0 * mean_squared_error(c_array[:3], [0, 0, 0])),
+                                           rgba=(1, 0, 0, 0.8),
+                                           emission=1)
+
+    def step(self, action):
+        self.step_n += 1
+
+        action = np.clip(action, self.action_space.low, self.action_space.high)
+        self._set_action(action)
+        self.sim.step()
+        self._step_callback()
+        obs = self._get_obs()
+
+        done = False
+
+        info = {
+            'is_success': self._is_success(obs['achieved_goal'], self.goal, 1.0 if self._is_in_grasp_space() else 0.0),
+            "contact_penalty": self._check_contact(),
+            "is_in_grasp_space": 1.0 if self._is_in_grasp_space() else 0.0
+        }
+        reward = self.compute_reward(obs['achieved_goal'], self.goal, info)
+
+        if self.step_n < 20:
+            self.sim.data.set_joint_qpos(self.object, self.initial_qpos)
+
+        # Options for displaying information
+        # self._display_contacts()
+        # if self._is_in_grasp_space():
+        #     self._display_grasp_space()
+
+        return obs, reward, done, info
 
 
-class HandEggEnv(ManipulateEnv):
-    def __init__(self, target_position='random', target_rotation='xyz', reward_type='sparse'):
-        super(HandEggEnv, self).__init__(
-            model_path=MANIPULATE_EGG_XML, target_position=target_position,
-            target_rotation=target_rotation,
-            target_position_range=np.array([(-0.04, 0.04), (-0.06, 0.02), (0.0, 0.06)]),
-            reward_type=reward_type)
-
-
-class HandPenEnv(ManipulateEnv):
-    def __init__(self, target_position='random', target_rotation='xyz', reward_type='sparse'):
-        super(HandPenEnv, self).__init__(
-            model_path=MANIPULATE_PEN_XML, target_position=target_position,
-            target_rotation=target_rotation,
-            target_position_range=np.array([(-0.04, 0.04), (-0.06, 0.02), (0.0, 0.06)]),
-            randomize_initial_rotation=False, reward_type=reward_type,
-            ignore_z_target_rotation=True, distance_threshold=0.05)
-
-
-class GraspBlockEnv(ManipulateEnv):
-    def __init__(self, target_position='random', target_rotation='xyz', reward_type=None):
-        super(GraspBlockEnv, self).__init__(
-            model_path=GRASP_BLOCK_XML, target_position=target_position,
+class GraspObjectEnv(ManipulateEnv):
+    def __init__(self, target_position='random', target_rotation='xyz', reward_type="not_sparse"):
+        super(GraspObjectEnv, self).__init__(
+            model_path=GRASP_OBJECT_XML, target_position=target_position,
             target_rotation=target_rotation,
             target_position_range=np.array([(-0.025, 0.025), (-0.025, 0.025), (0.2, 0.25)]),
             randomize_initial_position=False, reward_type=reward_type,
             distance_threshold=0.05,
             rotation_threshold=100.0,
-            randomize_object=False, target_id=2, num_axis=5, reward_lambda=0.4
+            randomize_object=False, target_id=0, num_axis=5, reward_lambda=0.4
         )
+
+
 '''
 Object_list:
     self.object_list = ["box:joint", "apple:joint", "banana:joint", "beerbottle:joint", "book:joint",

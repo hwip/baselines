@@ -263,3 +263,7 @@ MUJOCO_LOG.TXT
 TRAIN.sh
 MAKE_TRAINING_DATA.sh
 projection/*.sh
+
+*.npy
+
+policy/

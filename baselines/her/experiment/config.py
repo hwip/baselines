@@ -184,7 +184,7 @@ def configure_dims(params):
     if params['synergy_type'] == 'actuator':
         pos_dim = env.action_space.sample()[:20]
     elif params['synergy_type'] == 'joint':
-        pos_dim = obs['observation'][3:25]
+        pos_dim = obs['observation'][5:27]
 
     dims = {
         'o': obs['observation'].shape[0],
